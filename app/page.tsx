@@ -4,15 +4,20 @@
 import { useMemo, useState } from 'react'
 import ExcelJS from 'exceljs'
 import {
+  AlertTriangle,
+  BadgeCheck,
+  CalendarDays,
   Check,
   ChevronDown,
+  ClipboardCheck,
+  ClipboardList,
   Download,
   Eye,
   FileSpreadsheet,
-  Pencil,
+  History,
+  PencilLine,
   Plus,
   Search,
-  Sparkles,
   X,
 } from 'lucide-react'
 
@@ -21,11 +26,7 @@ import {
 ========================================================= */
 
 const sections = [
-  {
-    id: '01',
-    title: 'Eléctrico',
-    items: [['PE059', 'Falla eléctrica']],
-  },
+  { id: '01', title: 'Eléctrico', items: [['PE059', 'Falla eléctrica']] },
   {
     id: '03',
     title: 'Hidráulico',
@@ -168,7 +169,7 @@ const allItems = sections.flatMap((section) =>
 )
 
 /* =========================================================
-   TIPOS DE DATOS
+   TIPOS
 ========================================================= */
 
 type Metadata = {
@@ -194,11 +195,26 @@ type HistoryItem = Metadata & {
 }
 
 /* =========================================================
-   ESTILOS
+   ESTILOS REUTILIZABLES
 ========================================================= */
 
 const inputClass =
-  'mt-1.5 w-full min-w-0 rounded-xl border border-[#dce5e0] bg-[#fbfcfb] px-3 py-2.5 text-sm font-medium text-[#17211e] outline-none transition focus:border-[#3b8166] focus:ring-2 focus:ring-[#3b8166]/15'
+  'mt-1.5 w-full min-w-0 rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60'
+
+const labelClass =
+  'block min-w-0 text-xs font-semibold tracking-wide text-muted-foreground'
+
+const panelClass =
+  'min-w-0 rounded-xl border border-border bg-card shadow-sm'
+
+const primaryButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50'
+
+const secondaryButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+
+const iconButtonClass =
+  'inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
 
 /* =========================================================
    DATOS DE PRUEBA DEL HISTORIAL
@@ -268,12 +284,6 @@ const initialHistory: HistoryItem[] = [
   },
 ]
 
-/* =========================================================
-   COORDENADAS DE LA PLANTILLA EXCEL
-
-   Se mantienen las coordenadas indicadas actualmente.
-   ========================================================= */
-
 const EXCEL_CELLS = {
   dateHeader: 'D3',
   ind: 'C5',
@@ -291,8 +301,6 @@ const EXCEL_CELLS = {
 ========================================================= */
 
 export default function Page() {
-  /* Datos de la ficha actual */
-
   const [metadata, setMetadata] = useState<Metadata>({
     ind: '',
     supervisor: '',
@@ -304,120 +312,69 @@ export default function Page() {
   })
 
   const [note, setNote] = useState('')
-  const [plant, setPlant] = useState<'Planta 2' | 'Planta 3'>(
-    'Planta 2',
-  )
+  const [plant, setPlant] = useState<'Planta 2' | 'Planta 3'>('Planta 2')
   const [quantity, setQuantity] = useState('1')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
-  const [savedObservations, setSavedObservations] = useState<
-    Observation[]
-  >([])
+  const [savedObservations, setSavedObservations] = useState<Observation[]>([])
 
-  /* Historial y edición */
-
-  const [history, setHistory] =
-    useState<HistoryItem[]>(initialHistory)
-
+  const [history, setHistory] = useState<HistoryItem[]>(initialHistory)
   const [preview, setPreview] = useState<HistoryItem | null>(null)
-
-  // Identifica la ficha original cuando estamos editando.
-  const [editingChassis, setEditingChassis] = useState<string | null>(
-    null,
-  )
-
-  /* Interfaz */
+  const [editingChassis, setEditingChassis] = useState<string | null>(null)
 
   const [toast, setToast] = useState('')
   const [exporting, setExporting] = useState(false)
   const [query, setQuery] = useState('')
   const [activeSection, setActiveSection] = useState('Todos')
 
-  /* =======================================================
-     FUNCIONES AUXILIARES
-  ======================================================= */
-
   const setMeta = (key: keyof Metadata, value: string) => {
-    setMetadata((current) => ({
-      ...current,
-      [key]: value,
-    }))
+    setMetadata((current) => ({ ...current, [key]: value }))
   }
 
   const showToast = (message: string) => {
     setToast(message)
-
-    window.setTimeout(() => {
-      setToast('')
-    }, 2800)
+    window.setTimeout(() => setToast(''), 2800)
   }
 
-  /* =======================================================
-     CATÁLOGO
-  ======================================================= */
+  /* Catálogo de referencia */
 
   const filteredItems = useMemo(() => {
-    const search = query.toLowerCase()
-
     return allItems.filter(
       (item) =>
-        (activeSection === 'Todos' ||
-          item.section === activeSection) &&
-        `${item.code} ${item.description}`
-          .toLowerCase()
-          .includes(search),
+        activeSection === 'Todos' || item.section === activeSection,
     )
-  }, [activeSection, query])
+  }, [activeSection])
 
-  /* =======================================================
-     HISTORIAL
-  ======================================================= */
+  /* Historial */
 
   const filteredHistory = useMemo(() => {
     const search = query.trim().toLowerCase()
 
-    if (!search) {
-      return history
-    }
+    if (!search) return history
 
     return history.filter((item) =>
-      `${item.chassis} ${item.ind} ${item.box} ${item.supervisor}`
+      `${item.chassis} ${item.ind} ${item.box} ${item.supervisor} ${item.process}`
         .toLowerCase()
         .includes(search),
     )
   }, [history, query])
 
-  /* =======================================================
-     VALIDAR CHASIS DUPLICADO
-
-     Al editar se excluye la ficha original.
-     Así puedes conservar su chasis sin generar una alerta.
-  ======================================================= */
-
+  /* Validación de chasis: excluye la ficha que se está editando */
 
   const duplicateChassis =
     metadata.chassis.trim() !== '' &&
     history.some(
       (item) =>
         item.chassis.trim() === metadata.chassis.trim() &&
-        (
-          editingChassis === null ||
-          item.chassis.trim() !== editingChassis.trim()
-        ),
+        (editingChassis === null ||
+          item.chassis.trim() !== editingChassis.trim()),
     )
 
-  /* =======================================================
-     ANALIZAR OBSERVACIÓN
-
-     Por ahora es una simulación.
-     Después se podrá conectar un modelo real.
-  ======================================================= */
+  /* Análisis simulado: aún no está conectado a un modelo de IA */
 
   const analyze = () => {
-    if (!note.trim()) {
-      return
-    }
+    if (!note.trim()) return
 
     setAnalyzing(true)
     setSelected(null)
@@ -428,19 +385,14 @@ export default function Page() {
         'Instalación incorrecta',
         'Trabajos incompletos',
       ])
-
       setAnalyzing(false)
     }, 500)
   }
 
-  /* =======================================================
-     GUARDAR OBSERVACIÓN
-  ======================================================= */
+  /* Guardar observación */
 
   const saveObservation = () => {
-    if (!selected || !note.trim() || !metadata.chassis) {
-      return
-    }
+    if (!selected || !note.trim() || !metadata.chassis.trim()) return
 
     const matchedItem = allItems.find(
       (item) => item.description === selected,
@@ -454,23 +406,14 @@ export default function Page() {
       plant,
     }
 
-    setSavedObservations((current) => [
-      ...current,
-      observation,
-    ])
-
+    setSavedObservations((current) => [...current, observation])
     setNote('')
     setSuggestions([])
     setSelected(null)
-
-    showToast('Observación guardada correctamente')
+    showToast('Observación agregada a la ficha')
   }
 
-  /* =======================================================
-     EDITAR FICHA
-
-     Carga los datos y observaciones de la ficha elegida.
-  ======================================================= */
+  /* Cargar ficha para edición */
 
   const editReport = (item: HistoryItem) => {
     setEditingChassis(item.chassis)
@@ -485,12 +428,7 @@ export default function Page() {
       method: item.method,
     })
 
-    setSavedObservations(
-      item.observations.map((observation) => ({
-        ...observation,
-      })),
-    )
-
+    setSavedObservations(item.observations.map((observation) => ({ ...observation })))
     setNote('')
     setSuggestions([])
     setSelected(null)
@@ -498,17 +436,11 @@ export default function Page() {
     setQuantity('1')
     setPreview(null)
 
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
-
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     showToast(`Ficha ${item.chassis} cargada para edición`)
   }
 
-  /* =======================================================
-     CANCELAR EDICIÓN
-  ======================================================= */
+  /* Cancelar edición */
 
   const cancelEdit = () => {
     setEditingChassis(null)
@@ -533,23 +465,19 @@ export default function Page() {
     showToast('Edición cancelada')
   }
 
-  /* =======================================================
-     GUARDAR O ACTUALIZAR FICHA
-  ======================================================= */
-
+  /* Guardar o actualizar ficha */
 
   const saveReport = () => {
     const chassis = metadata.chassis.trim()
     const ind = metadata.ind.trim()
 
     if (!chassis || !ind) {
-      showToast('Completa IND y número de chasis para guardar')
+      showToast('Completa el IND y el número de chasis')
       return
     }
 
-    // Solo bloquear si el chasis pertenece a OTRA ficha.
     if (duplicateChassis) {
-      showToast('Error: este chasis ya está registrado')
+      showToast('Este chasis ya está registrado en otra ficha')
       return
     }
 
@@ -557,45 +485,31 @@ export default function Page() {
       ...metadata,
       chassis,
       ind,
-      observations: savedObservations.map((observation) => ({
-        ...observation,
-      })),
+      observations: savedObservations.map((observation) => ({ ...observation })),
     }
 
     if (editingChassis !== null) {
-      // Actualizar la ficha original, sin crear otra.
       setHistory((current) =>
         current.map((item) =>
-          item.chassis.trim() === editingChassis.trim()
-            ? report
-            : item,
+          item.chassis.trim() === editingChassis.trim() ? report : item,
         ),
       )
 
       setEditingChassis(null)
       showToast('Ficha actualizada correctamente')
     } else {
-      // Crear una ficha nueva.
       setHistory((current) => [report, ...current])
       showToast('Ficha guardada correctamente')
     }
   }
 
-  /* =======================================================
-     EXPORTAR EXCEL
-
-     Las coordenadas se mantienen como están definidas arriba.
-     Las observaciones se reciben como parámetro para garantizar
-     que se descarguen las de la ficha seleccionada.
-  ======================================================= */
+  /* Exportar Excel */
 
   async function exportWorkbook(
     report: Metadata,
     observations: Observation[] = savedObservations,
   ) {
-    if (exporting) {
-      return
-    }
+    if (exporting) return
 
     setExporting(true)
 
@@ -607,7 +521,6 @@ export default function Page() {
       }
 
       const workbook = new ExcelJS.Workbook()
-
       await workbook.xlsx.load(await response.arrayBuffer())
 
       const sheet = workbook.worksheets[0]
@@ -616,19 +529,13 @@ export default function Page() {
         throw new Error('La plantilla no contiene hojas de cálculo')
       }
 
-      /* Datos generales */
-
       sheet.getCell(EXCEL_CELLS.dateHeader).value = report.date
         ? new Date(`${report.date}T12:00:00`)
         : ''
 
       sheet.getCell(EXCEL_CELLS.ind).value = report.ind
-
-      sheet.getCell(EXCEL_CELLS.supervisor).value =
-        report.supervisor
-
+      sheet.getCell(EXCEL_CELLS.supervisor).value = report.supervisor
       sheet.getCell(EXCEL_CELLS.chassis).value = report.chassis
-
       sheet.getCell(EXCEL_CELLS.box).value = report.box
 
       sheet.getCell(EXCEL_CELLS.date).value = report.date
@@ -636,10 +543,7 @@ export default function Page() {
         : ''
 
       sheet.getCell(EXCEL_CELLS.process).value = report.process
-
       sheet.getCell(EXCEL_CELLS.method).value = report.method
-
-      /* Observaciones */
 
       sheet.getCell(EXCEL_CELLS.observations).value = observations
         .map(
@@ -648,10 +552,7 @@ export default function Page() {
         )
         .join('\n')
 
-      /* Generar archivo */
-
       const buffer = await workbook.xlsx.writeBuffer()
-
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
@@ -666,11 +567,7 @@ export default function Page() {
       link.click()
       link.remove()
 
-      // Dar tiempo al navegador para iniciar la descarga.
-      window.setTimeout(() => {
-        URL.revokeObjectURL(url)
-      }, 1000)
-
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
       showToast('Excel descargado correctamente')
     } catch (error) {
       console.error('Error al generar Excel:', error)
@@ -681,182 +578,188 @@ export default function Page() {
   }
 
   /* =======================================================
-     RENDER
+     INTERFAZ
   ======================================================= */
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f5f7f6] text-[#17211e]">
+    <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
+      {/* Encabezado corporativo */}
 
-      {/* HEADER */}
-
-      <header className="sticky top-0 z-20 border-b border-[#dce5e0] bg-[#f5f7f6]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#173d32] text-white">
-              <FileSpreadsheet />
+            <div className="relative grid size-11 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+              <ClipboardCheck size={23} strokeWidth={1.8} />
+              <span className="absolute bottom-0 left-0 h-1 w-full rounded-b-lg bg-[#F2B827]" />
             </div>
 
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold uppercase tracking-[0.18em] text-[#6e7d76]">
-                Calidad · Open
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                RMB SATECI · CALIDAD
               </p>
-
-              <h1 className="truncate text-lg font-bold tracking-tight">
+              <h1 className="truncate text-base font-bold tracking-tight sm:text-lg">
                 Checklist de inspección
               </h1>
             </div>
           </div>
 
           <button
-            onClick={() =>
-              exportWorkbook(metadata, savedObservations)
-            }
+            type="button"
+            onClick={() => exportWorkbook(metadata, savedObservations)}
             disabled={exporting}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#ef8b4e] px-3 py-2.5 text-sm font-bold text-[#29170d] shadow-sm hover:bg-[#e77d3e] disabled:opacity-60"
+            className={primaryButtonClass}
           >
-            <Download />
-
+            <FileSpreadsheet size={17} />
             <span className="hidden sm:inline">
-              {exporting ? 'Preparando…' : 'Descargar Excel'}
+              {exporting ? 'Preparando archivo…' : 'Exportar Excel'}
+            </span>
+            <span className="sm:hidden">
+              {exporting ? 'Preparando…' : 'Exportar'}
             </span>
           </button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        {/* Cabecera de la página */}
 
-        {/* PRESENTACIÓN */}
-
-        <section className="mb-6 overflow-hidden rounded-3xl bg-[#173d32] p-6 text-white shadow-lg sm:p-8">
-          <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-[#d9eee5]">
-              <Sparkles />
-              Captura solo lo que requiere atención
-            </div>
-
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Registra observaciones sin llenar casillas innecesarias.
-            </h2>
-
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#c0d6cd]">
-              Analiza una nota, confirma la coincidencia y guarda
-              únicamente lo que requiere atención.
-            </p>
+        <section className="relative mb-6 overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
+          <div className="absolute inset-y-0 right-0 hidden w-1/3 opacity-[0.08] sm:block">
+            <ClipboardCheck className="absolute -right-8 -top-12 size-72" strokeWidth={0.7} />
           </div>
 
-          <div className="mt-7 flex flex-wrap gap-3">
-            <div className="rounded-2xl bg-white/10 px-4 py-3">
-              <p className="text-2xl font-bold">
-                {savedObservations.length}
-              </p>
-              <p className="text-xs text-[#c0d6cd]">
-                observaciones nuevas
+          <div className="relative flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/10 px-2.5 py-1.5 text-xs font-semibold">
+                <span className="size-2 rounded-full bg-[#F2B827]" />
+                Sistema de control de calidad
+              </div>
+
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                Registro de inspección
+              </h2>
+
+              <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">
+                Registra los datos de la unidad, documenta las observaciones
+                y prepara la ficha para su exportación.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-white/10 px-4 py-3">
-              <p className="text-2xl font-bold">
-                {allItems.length}
-              </p>
-              <p className="text-xs text-[#c0d6cd]">
-                puntos disponibles
-              </p>
+            <div className="flex flex-wrap gap-3">
+              <div className="min-w-32 rounded-lg border border-white/15 bg-white/10 px-4 py-3">
+                <p className="text-2xl font-bold tabular-nums">
+                  {savedObservations.length.toString().padStart(2, '0')}
+                </p>
+                <p className="mt-0.5 text-xs text-white/70">
+                  Observaciones
+                </p>
+              </div>
+
+              <div className="min-w-32 rounded-lg border border-white/15 bg-white/10 px-4 py-3">
+                <p className="text-2xl font-bold tabular-nums">
+                  {allItems.length}
+                </p>
+                <p className="mt-0.5 text-xs text-white/70">
+                  Códigos disponibles
+                </p>
+              </div>
             </div>
           </div>
+
+          <div className="h-1 w-full bg-[#F2B827]" />
         </section>
 
-        {/* DATOS DEL REPORTE */}
+        {/* Datos del reporte */}
 
-        <section className="mb-6 rounded-2xl border border-[#dce5e0] bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="font-bold">Datos del reporte</h2>
-              <p className="text-sm text-[#6e7d76]">
-                Identifica la unidad antes de registrar observaciones.
-              </p>
+        <section className={`${panelClass} mb-6`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="grid size-9 place-items-center rounded-lg bg-secondary text-primary">
+                <ClipboardList size={19} />
+              </div>
+              <div>
+                <h2 className="font-bold">Datos de la unidad</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Información general de la ficha de inspección
+                </p>
+              </div>
             </div>
 
-            <span className="rounded-full bg-[#eaf3ef] px-3 py-1 text-xs font-bold text-[#28604d]">
-              Versión 03
+            <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+              Formato v03
             </span>
           </div>
 
           {editingChassis !== null && (
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9db8aa] bg-[#eaf3ef] p-3">
-              <p className="text-sm font-semibold text-[#173d32]">
-                <Pencil className="mr-2 inline size-4" />
-                Editando ficha del chasis {editingChassis}
-              </p>
+            <div className="mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-secondary p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <PencilLine size={17} />
+                <span>Modo edición · Chasis {editingChassis}</span>
+              </div>
 
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="rounded-lg border border-[#9db8aa] bg-white px-3 py-2 text-xs font-bold text-[#28604d] hover:bg-[#f5f7f6]"
+                className={secondaryButtonClass}
               >
+                <X size={15} />
                 Cancelar edición
               </button>
             </div>
           )}
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
-              IND
+          <div className="grid min-w-0 gap-x-4 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+            <label className={labelClass}>
+              IND <span className="text-destructive">*</span>
               <input
                 inputMode="numeric"
                 maxLength={4}
                 value={metadata.ind}
                 onChange={(e) =>
-                  setMeta(
-                    'ind',
-                    e.target.value.replace(/\D/g, '').slice(0, 4),
-                  )
+                  setMeta('ind', e.target.value.replace(/\D/g, '').slice(0, 4))
                 }
-                placeholder="0000"
+                placeholder="Ej. 0125"
                 className={inputClass}
               />
             </label>
 
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
-              Sup. de calidad
+            <label className={labelClass}>
+              Supervisor de calidad
               <input
                 value={metadata.supervisor}
-                onChange={(e) =>
-                  setMeta('supervisor', e.target.value)
-                }
+                onChange={(e) => setMeta('supervisor', e.target.value)}
+                placeholder="Nombre del supervisor"
                 className={inputClass}
               />
             </label>
 
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
-              N.º de chasis
+            <label className={labelClass}>
+              Número de chasis <span className="text-destructive">*</span>
               <input
                 inputMode="numeric"
                 maxLength={6}
                 value={metadata.chassis}
                 onChange={(e) =>
-                  setMeta(
-                    'chassis',
-                    e.target.value.replace(/\D/g, '').slice(0, 6),
-                  )
+                  setMeta('chassis', e.target.value.replace(/\D/g, '').slice(0, 6))
                 }
-                placeholder="000000"
+                placeholder="Ej. 001250"
+                aria-invalid={duplicateChassis}
                 className={`${inputClass} ${
                   duplicateChassis
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500/15'
+                    ? 'border-destructive focus-visible:ring-destructive/20'
                     : ''
                 }`}
               />
 
               {duplicateChassis && (
-                <p className="mt-2 text-xs font-bold text-red-600">
-                  ⚠️ Este chasis ya está registrado en otra ficha.
-                  No podrás guardar hasta corregirlo.
+                <p className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-destructive">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  Este chasis pertenece a otra ficha registrada.
                 </p>
               )}
             </label>
 
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
+            <label className={labelClass}>
               Código de caja
               <input
                 maxLength={7}
@@ -864,24 +767,19 @@ export default function Page() {
                 onChange={(e) =>
                   setMeta(
                     'box',
-                    e.target.value
-                      .toUpperCase()
-                      .replace(/[^0-9A-Z-]/g, '')
-                      .slice(0, 7),
+                    e.target.value.toUpperCase().replace(/[^0-9A-Z-]/g, '').slice(0, 7),
                   )
                 }
-                placeholder="0000-XX"
+                placeholder="Ej. 0125-AB"
                 className={inputClass}
               />
             </label>
 
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
-              Tipo de proceso
+            <label className={labelClass}>
+              Proceso
               <select
                 value={metadata.process}
-                onChange={(e) =>
-                  setMeta('process', e.target.value)
-                }
+                onChange={(e) => setMeta('process', e.target.value)}
                 className={inputClass}
               >
                 <option>Montaje</option>
@@ -890,13 +788,11 @@ export default function Page() {
               </select>
             </label>
 
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
-              Tipo de inspección
+            <label className={labelClass}>
+              Método de inspección
               <select
                 value={metadata.method}
-                onChange={(e) =>
-                  setMeta('method', e.target.value)
-                }
+                onChange={(e) => setMeta('method', e.target.value)}
                 className={inputClass}
               >
                 <option>No definido</option>
@@ -906,126 +802,146 @@ export default function Page() {
               </select>
             </label>
 
-            <label className="min-w-0 text-xs font-semibold text-[#53625b]">
-              Fecha
-              <input
-                type="date"
-                value={metadata.date}
-                onChange={(e) =>
-                  setMeta('date', e.target.value)
-                }
-                className={inputClass}
-              />
+            <label className={labelClass}>
+              Fecha de inspección
+              <span className="relative block">
+                <CalendarDays
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  type="date"
+                  value={metadata.date}
+                  onChange={(e) => setMeta('date', e.target.value)}
+                  className={`${inputClass} pl-9`}
+                />
+              </span>
             </label>
           </div>
         </section>
 
-        {/* CAPTURA DE OBSERVACIONES */}
+        {/* Captura de observaciones */}
 
-        <section className="mb-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)]">
+        <section className="mb-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          {/* Nueva observación */}
 
-          {/* NUEVA OBSERVACIÓN */}
-
-          <div className="min-w-0 rounded-2xl border border-[#dce5e0] bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#6e7d76]">
-                  Llenado asistido
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold">
-                  Nueva observación
-                </h2>
-
-                <p className="mt-1 text-sm text-[#6e7d76]">
-                  Describe lo que encontraste y confirma la mejor
-                  coincidencia.
-                </p>
+          <div className={`${panelClass} p-5 sm:p-6`}>
+            <div className="flex items-start gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+                <ClipboardCheck size={21} />
               </div>
 
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#eaf3ef] text-[#28604d]">
-                <Sparkles />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                  Registro técnico
+                </p>
+                <h2 className="mt-1 text-lg font-bold">Nueva observación</h2>
+                <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                  Describe el hallazgo y selecciona el código que mejor lo representa.
+                </p>
               </div>
             </div>
 
-            <label className="mt-5 block text-sm font-bold text-[#53625b]">
-              ¿Qué observaste?
+            <label className="mt-5 block text-sm font-semibold">
+              Descripción del hallazgo
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Ej. Se observa accesorio flojo en la zona lateral…"
+                placeholder="Ej. Se observa un accesorio flojo en la zona lateral..."
                 rows={4}
-                className={`${inputClass} resize-none`}
+                className={`${inputClass} resize-y`}
               />
             </label>
 
-            <button
-              onClick={analyze}
-              disabled={!note.trim() || analyzing}
-              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#173d32] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#28604d] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {analyzing ? 'Analizando…' : 'Analizar observación'}
-              <ChevronDown className="rotate-[-90deg]" />
-            </button>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                La clasificación sugerida es una ayuda para el registro.
+              </p>
+              <button
+                type="button"
+                onClick={analyze}
+                disabled={!note.trim() || analyzing}
+                className={primaryButtonClass}
+              >
+                <Search size={16} />
+                {analyzing ? 'Analizando…' : 'Buscar coincidencia'}
+              </button>
+            </div>
 
             {suggestions.length > 0 && (
-              <div className="mt-6 rounded-2xl border border-[#dce5e0] bg-[#f8faf9] p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-bold">
-                    Elige la coincidencia
-                  </p>
-
-                  <span className="text-xs text-[#6e7d76]">
-                    mejor a menor coincidencia
+              <div className="mt-6 border-t border-border pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold">Clasificación de la observación</h3>
+                  <span className="text-xs text-muted-foreground">
+                    Selecciona una opción
                   </span>
                 </div>
 
-                <div className="mt-3 flex flex-col gap-2">
-                  {suggestions.map((suggestion, index) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => setSelected(suggestion)}
-                      className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm transition ${
-                        selected === suggestion
-                          ? 'border-[#3b8166] bg-[#eaf3ef] text-[#173d32]'
-                          : 'border-[#dce5e0] bg-white hover:border-[#9db8aa]'
-                      }`}
-                    >
-                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#dceee6] text-xs font-black text-[#28604d]">
-                        {index + 1}
-                      </span>
+                <div className="mt-3 space-y-2">
+                  {suggestions.map((suggestion, index) => {
+                    const match = allItems.find(
+                      (item) => item.description === suggestion,
+                    )
+                    const isSelected = selected === suggestion
 
-                      <span className="font-semibold">
-                        {suggestion}
-                      </span>
+                    return (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => setSelected(suggestion)}
+                        className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${
+                          isSelected
+                            ? 'border-primary bg-secondary ring-1 ring-primary/20'
+                            : 'border-border bg-card hover:border-primary/40 hover:bg-muted/50'
+                        }`}
+                      >
+                        <span
+                          className={`grid size-7 shrink-0 place-items-center rounded-md text-xs font-bold ${
+                            isSelected
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {index + 1}
+                        </span>
 
-                      {selected === suggestion && (
-                        <Check className="ml-auto shrink-0 text-[#28604d]" />
-                      )}
-                    </button>
-                  ))}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold">
+                            {suggestion}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            {match ? `${match.code} · ${match.section}` : 'Registro manual'}
+                          </span>
+                        </span>
+
+                        {isSelected && (
+                          <Check size={18} className="shrink-0 text-primary" />
+                        )}
+                      </button>
+                    )
+                  })}
 
                   <button
+                    type="button"
                     onClick={() => setSelected('Otra / no coincide')}
-                    className={`rounded-xl border border-dashed p-3 text-left text-sm font-semibold ${
+                    className={`flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-left text-sm font-semibold transition ${
                       selected === 'Otra / no coincide'
-                        ? 'border-[#3b8166] bg-[#eaf3ef]'
-                        : 'border-[#b4c7bd] bg-white'
+                        ? 'border-primary bg-secondary text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
                     }`}
                   >
-                    Ninguna coincide · registrar otra opción
+                    <Plus size={16} />
+                    Ninguna coincide: registrar como observación manual
                   </button>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-[#53625b]">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className={labelClass}>
                     Planta
                     <select
                       value={plant}
                       onChange={(e) =>
-                        setPlant(
-                          e.target.value as 'Planta 2' | 'Planta 3',
-                        )
+                        setPlant(e.target.value as 'Planta 2' | 'Planta 3')
                       }
                       className={inputClass}
                     >
@@ -1034,15 +950,13 @@ export default function Page() {
                     </select>
                   </label>
 
-                  <label className="text-xs font-bold text-[#53625b]">
+                  <label className={labelClass}>
                     Cantidad
                     <input
                       inputMode="numeric"
                       value={quantity}
                       onChange={(e) =>
-                        setQuantity(
-                          e.target.value.replace(/\D/g, '').slice(0, 3),
-                        )
+                        setQuantity(e.target.value.replace(/\D/g, '').slice(0, 3))
                       }
                       className={inputClass}
                     />
@@ -1050,6 +964,7 @@ export default function Page() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={saveObservation}
                   disabled={
                     !selected ||
@@ -1057,225 +972,229 @@ export default function Page() {
                     !metadata.chassis.trim() ||
                     duplicateChassis
                   }
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ef8b4e] px-4 py-3 text-sm font-black text-[#29170d] disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`${primaryButtonClass} mt-4 w-full`}
                 >
-                  <Plus />
-                  Guardar observación
+                  <Plus size={17} />
+                  Agregar observación a la ficha
                 </button>
               </div>
             )}
           </div>
 
-          {/* OBSERVACIONES DE LA FICHA */}
+          {/* Lista de observaciones */}
 
-          <div className="min-w-0 rounded-2xl border border-[#dce5e0] bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#6e7d76]">
-                  Antes de exportar
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold">
-                  Observaciones de esta ficha
-                </h2>
+          <div className={`${panelClass} p-5 sm:p-6`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+                  <ClipboardList size={20} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Observaciones de la ficha</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Revisa los hallazgos antes de guardar.
+                  </p>
+                </div>
               </div>
 
-              <span className="rounded-full bg-[#eaf3ef] px-2.5 py-1 text-xs font-bold text-[#28604d]">
+              <span className="rounded-md border border-border bg-muted px-2.5 py-1 text-sm font-bold tabular-nums">
                 {savedObservations.length}
               </span>
             </div>
 
             {savedObservations.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-[#b4c7bd] bg-[#f8faf9] p-6 text-center text-sm text-[#6e7d76]">
-                Aquí aparecerán las observaciones guardadas de la
-                unidad.
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8 text-center">
+                <ClipboardList size={26} className="mx-auto text-muted-foreground/60" />
+                <p className="mt-3 text-sm font-semibold">Sin observaciones registradas</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Las observaciones que agregues aparecerán aquí.
+                </p>
               </div>
             ) : (
-              <div className="mt-4 flex flex-col gap-3">
+              <div className="mt-5 space-y-3">
                 {savedObservations.map((item, index) => (
-                  <div
+                  <article
                     key={`${item.code}-${index}`}
-                    className="rounded-xl border border-[#dce5e0] p-3"
+                    className="rounded-lg border border-border p-3"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-black text-[#28604d]">
-                          {item.code} · {item.description}
-                        </p>
+                    <div className="flex items-start gap-3">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+                        <AlertTriangle size={16} />
+                      </div>
 
-                        <p className="mt-1 text-sm">{item.note}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-primary">
+                          {item.code}
+                        </p>
+                        <h3 className="mt-0.5 text-sm font-semibold">
+                          {item.description}
+                        </h3>
+                        <p className="mt-1 break-words text-sm text-muted-foreground">
+                          {item.note}
+                        </p>
                       </div>
 
                       <button
+                        type="button"
                         onClick={() =>
                           setSavedObservations((current) =>
                             current.filter((_, i) => i !== index),
                           )
                         }
-                        aria-label="Eliminar observación"
-                        className="rounded-lg p-1 text-[#7b8b83] hover:bg-[#f5f7f6]"
+                        aria-label={`Eliminar observación ${item.code}`}
+                        title="Eliminar observación"
+                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                       >
-                        <X />
+                        <X size={17} />
                       </button>
                     </div>
 
-                    <p className="mt-2 text-xs font-semibold text-[#6e7d76]">
-                      {item.plant} · Cantidad {item.quantity}
-                    </p>
-                  </div>
+                    <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+                      <span className="rounded-md bg-muted px-2 py-1">{item.plant}</span>
+                      <span className="rounded-md bg-muted px-2 py-1">
+                        Cantidad: {item.quantity}
+                      </span>
+                    </div>
+                  </article>
                 ))}
               </div>
             )}
 
             <button
+              type="button"
               onClick={saveReport}
               disabled={duplicateChassis}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#3b8166] px-4 py-3 text-sm font-bold text-[#28604d] hover:bg-[#eaf3ef] disabled:cursor-not-allowed disabled:opacity-50"
+              className={`${primaryButtonClass} mt-5 w-full`}
             >
-              <Check />
-              {editingChassis !== null
-                ? 'Guardar cambios'
-                : 'Guardar ficha completa'}
+              {editingChassis !== null ? (
+                <Check size={17} />
+              ) : (
+                <BadgeCheck size={17} />
+              )}
+              {editingChassis !== null ? 'Guardar cambios' : 'Guardar ficha completa'}
             </button>
 
             {duplicateChassis && (
-              <p className="mt-2 text-xs text-red-600">
-                Corrige el número de chasis antes de guardar.
+              <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <AlertTriangle size={14} />
+                Corrige el chasis antes de guardar.
               </p>
             )}
           </div>
         </section>
 
-        {/* HISTORIAL */}
+        {/* Historial */}
 
-        <section className="mb-6 overflow-hidden rounded-2xl border border-[#dce5e0] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#e8efeb] p-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-[#6e7d76]">
-                Historial
-              </p>
-
-              <h2 className="mt-1 text-xl font-bold">
-                Fichas registradas
-              </h2>
-
-              <p className="mt-1 text-sm text-[#6e7d76]">
-                Visualiza, edita o descarga una ficha registrada.
-              </p>
+        <section className={`${panelClass} mb-6 overflow-hidden`}>
+          <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+                <History size={21} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Historial de inspecciones</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Consulta, actualiza o descarga las fichas registradas.
+                </p>
+              </div>
             </div>
 
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#82918a]" />
-
+            <div className="relative w-full sm:max-w-sm">
+              <Search
+                size={17}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
               <input
                 aria-label="Buscar ficha"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por chasis, IND, caja o supervisor"
-                className="w-full rounded-xl border border-[#dce5e0] py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#3b8166]"
+                placeholder="Buscar chasis, IND, caja o supervisor"
+                className={`${inputClass} mt-0 pl-9`}
               />
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-5 py-3">
+            <p className="text-xs text-muted-foreground">
+              Resultados: <strong className="text-foreground">{filteredHistory.length}</strong>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Los datos se mantienen en memoria durante esta sesión.
+            </p>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
-              <thead className="bg-[#f8faf9] text-xs uppercase tracking-wide text-[#6e7d76]">
+            <table className="w-full min-w-[950px] text-left text-sm">
+              <thead className="bg-muted/60 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
-                  <th className="px-5 py-3 font-bold">N.º Chasis</th>
-                  <th className="px-4 py-3 font-bold">IND</th>
-                  <th className="px-4 py-3 font-bold">Código de caja</th>
-                  <th className="px-4 py-3 font-bold">
-                    Supervisor de Calidad
-                  </th>
-                  <th className="px-4 py-3 font-bold">Fecha</th>
-                  <th className="px-4 py-3 font-bold">Proceso</th>
-                  <th className="px-4 py-3 font-bold">Estado</th>
-                  <th className="px-4 py-3 text-right font-bold">
-                    Acciones
-                  </th>
+                  <th className="px-5 py-3.5 font-bold">Chasis</th>
+                  <th className="px-4 py-3.5 font-bold">IND</th>
+                  <th className="px-4 py-3.5 font-bold">Código de caja</th>
+                  <th className="px-4 py-3.5 font-bold">Supervisor</th>
+                  <th className="px-4 py-3.5 font-bold">Fecha</th>
+                  <th className="px-4 py-3.5 font-bold">Proceso</th>
+                  <th className="px-4 py-3.5 font-bold">Estado</th>
+                  <th className="px-5 py-3.5 text-right font-bold">Acciones</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-[#edf2ef]">
+              <tbody className="divide-y divide-border">
                 {filteredHistory.map((item) => (
-                  <tr
-                    key={item.chassis}
-                    className="hover:bg-[#fbfcfb]"
-                  >
-                    <td className="px-5 py-4 font-mono font-bold text-[#28604d]">
-                      {item.chassis}
+                  <tr key={item.chassis} className="transition-colors hover:bg-muted/40">
+                    <td className="whitespace-nowrap px-5 py-4">
+                      <span className="font-mono font-bold text-primary">
+                        {item.chassis}
+                      </span>
                     </td>
-
-                    <td className="px-4 py-4 font-mono">
-                      {item.ind}
-                    </td>
-
-                    <td className="px-4 py-4 font-mono">
-                      {item.box}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {item.supervisor || '—'}
-                    </td>
-
-                    <td className="whitespace-nowrap px-4 py-4">
+                    <td className="px-4 py-4 font-mono text-muted-foreground">{item.ind}</td>
+                    <td className="px-4 py-4 font-mono text-muted-foreground">{item.box || '—'}</td>
+                    <td className="px-4 py-4">{item.supervisor || '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-muted-foreground">
                       {item.date
-                        ? new Date(
-                            `${item.date}T12:00:00`,
-                          ).toLocaleDateString('es-PE')
+                        ? new Date(`${item.date}T12:00:00`).toLocaleDateString('es-PE')
                         : '—'}
                     </td>
-
                     <td className="px-4 py-4">
-                      {item.process}
+                      <span className="inline-flex rounded-md border border-border bg-card px-2 py-1 text-xs font-medium">
+                        {item.process}
+                      </span>
                     </td>
-
                     <td className="px-4 py-4">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eaf3ef] px-2.5 py-1 text-xs font-bold text-[#28604d]">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         <Check size={14} />
                         Registrado
                       </span>
                     </td>
-
-                    <td className="px-4 py-4">
-                      <div className="flex justify-end gap-2">
-
-                        {/* VER */}
-
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-1.5">
                         <button
+                          type="button"
                           onClick={() => setPreview(item)}
                           aria-label={`Visualizar ficha ${item.chassis}`}
                           title="Ver ficha"
-                          className="rounded-lg border border-[#dce5e0] p-2 text-[#28604d] hover:bg-[#eaf3ef]"
+                          className={iconButtonClass}
                         >
-                          <Eye size={18} />
+                          <Eye size={17} />
                         </button>
-
-                        {/* EDITAR */}
-
                         <button
+                          type="button"
                           onClick={() => editReport(item)}
                           aria-label={`Editar ficha ${item.chassis}`}
                           title="Editar ficha"
-                          className="rounded-lg border border-[#dce5e0] p-2 text-[#28604d] hover:bg-[#eaf3ef]"
+                          className={iconButtonClass}
                         >
-                          <Pencil size={18} />
+                          <PencilLine size={17} />
                         </button>
-
-                        {/* DESCARGAR */}
-
                         <button
-                          onClick={() =>
-                            exportWorkbook(item, item.observations)
-                          }
+                          type="button"
+                          onClick={() => exportWorkbook(item, item.observations)}
                           aria-label={`Descargar Excel ${item.chassis}`}
                           title="Descargar Excel"
                           disabled={exporting}
-                          className="rounded-lg bg-[#173d32] p-2 text-white hover:bg-[#28604d] disabled:opacity-50"
+                          className={`${iconButtonClass} hover:border-primary hover:bg-primary hover:text-primary-foreground`}
                         >
-                          <Download size={18} />
+                          <Download size={17} />
                         </button>
-
                       </div>
                     </td>
                   </tr>
@@ -1283,11 +1202,12 @@ export default function Page() {
 
                 {filteredHistory.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-10 text-center text-sm text-[#6e7d76]"
-                    >
-                      No se encontraron fichas con esos datos.
+                    <td colSpan={8} className="px-5 py-12 text-center">
+                      <Search size={24} className="mx-auto text-muted-foreground/60" />
+                      <p className="mt-3 text-sm font-semibold">No se encontraron fichas</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Prueba con otro chasis, IND, código de caja o supervisor.
+                      </p>
                     </td>
                   </tr>
                 )}
@@ -1296,22 +1216,43 @@ export default function Page() {
           </div>
         </section>
 
-        {/* CATÁLOGO DE REFERENCIA */}
+        {/* Catálogo de referencia */}
 
-        <div className="hidden rounded-2xl border border-[#dce5e0] bg-white p-4 lg:block">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#6e7d76]">
-            Catálogo de referencia
-          </p>
+        <section className={`${panelClass} hidden p-5 lg:block`}>
+          <div className="flex items-start gap-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+              <ClipboardList size={19} />
+            </div>
+            <div>
+              <h2 className="font-bold">Catálogo de referencia</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Filtra las categorías para consultar los códigos disponibles.
+              </p>
+            </div>
+          </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveSection('Todos')}
+              className={`rounded-md border px-3 py-2 text-xs font-semibold transition ${
+                activeSection === 'Todos'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Todas las categorías
+            </button>
+
             {sections.map((section) => (
               <button
+                type="button"
                 key={section.id}
                 onClick={() => setActiveSection(section.title)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                className={`rounded-md border px-3 py-2 text-xs font-semibold transition ${
                   activeSection === section.title
-                    ? 'border-[#3b8166] bg-[#eaf3ef] text-[#28604d]'
-                    : 'border-[#dce5e0] text-[#6e7d76]'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {section.title}
@@ -1319,149 +1260,190 @@ export default function Page() {
             ))}
           </div>
 
-          {activeSection !== 'Todos' && (
-            <p className="mt-3 text-xs text-[#6e7d76]">
-              {filteredItems.length} coincidencias en {activeSection}.
-              Se usan para orientar el análisis, no es necesario
-              marcarlas todas.
-            </p>
-          )}
-        </div>
+          <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[500px] text-left text-sm">
+              <thead className="bg-muted/60 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2.5 font-semibold">Código</th>
+                  <th className="px-4 py-2.5 font-semibold">Descripción</th>
+                  <th className="px-4 py-2.5 font-semibold">Categoría</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredItems.map((item) => (
+                  <tr key={item.code} className="hover:bg-muted/30">
+                    <td className="px-4 py-2.5 font-mono text-xs font-bold text-primary">
+                      {item.code}
+                    </td>
+                    <td className="px-4 py-2.5">{item.description}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{item.section}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            {filteredItems.length} códigos en la selección actual.
+          </p>
+        </section>
       </div>
 
-      {/* VISTA PREVIA */}
+      {/* Vista previa de la ficha */}
 
       {preview && (
         <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-[#173d32]/35 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setPreview(null)
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
         >
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#6e7d76]">
-                  Vista de ficha
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold">
-                  {preview.chassis}
-                </h2>
-              </div>
-
-              <button
-                onClick={() => setPreview(null)}
-                aria-label="Cerrar vista previa"
-                className="rounded-lg p-2 hover:bg-[#f5f7f6]"
-              >
-                <X />
-              </button>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-[#7b8b83]">IND</p>
-                <p className="font-bold">{preview.ind}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-[#7b8b83]">
-                  Código de caja
-                </p>
-                <p className="font-bold">{preview.box}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-[#7b8b83]">Supervisor</p>
-                <p className="font-bold">
-                  {preview.supervisor || '—'}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-[#7b8b83]">Proceso</p>
-                <p className="font-bold">{preview.process}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-[#7b8b83]">Inspección</p>
-                <p className="font-bold">{preview.method}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-[#7b8b83]">
-                  Observaciones
-                </p>
-                <p className="font-bold">
-                  {preview.observations.length}
-                </p>
-              </div>
-            </div>
-
-            {/* DETALLE DE OBSERVACIONES */}
-
-            {preview.observations.length > 0 && (
-              <div className="mt-5 border-t border-[#e8efeb] pt-4">
-                <h3 className="text-sm font-bold">
-                  Detalle de observaciones
-                </h3>
-
-                <div className="mt-3 flex max-h-56 flex-col gap-3 overflow-y-auto">
-                  {preview.observations.map((observation, index) => (
-                    <div
-                      key={`${observation.code}-${index}`}
-                      className="rounded-xl border border-[#dce5e0] p-3"
-                    >
-                      <p className="text-xs font-black text-[#28604d]">
-                        {observation.code} · {observation.description}
-                      </p>
-
-                      <p className="mt-1 text-sm">
-                        {observation.note}
-                      </p>
-
-                      <p className="mt-2 text-xs text-[#6e7d76]">
-                        {observation.plant} · Cantidad{' '}
-                        {observation.quantity}
-                      </p>
-                    </div>
-                  ))}
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preview-title"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-card px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                    Vista de ficha
+                  </p>
+                  <h2 id="preview-title" className="mt-0.5 font-mono text-lg font-bold">
+                    Chasis {preview.chassis}
+                  </h2>
                 </div>
               </div>
-            )}
-
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button
-                onClick={() => editReport(preview)}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#3b8166] px-4 py-3 text-sm font-bold text-[#28604d] hover:bg-[#eaf3ef]"
-              >
-                <Pencil size={18} />
-                Editar ficha
-              </button>
 
               <button
-                onClick={() =>
-                  exportWorkbook(preview, preview.observations)
-                }
-                disabled={exporting}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#ef8b4e] px-4 py-3 text-sm font-bold text-[#29170d] disabled:opacity-50"
+                type="button"
+                onClick={() => setPreview(null)}
+                aria-label="Cerrar vista previa"
+                className={iconButtonClass}
               >
-                <Download size={18} />
-                Descargar Excel
+                <X size={18} />
               </button>
             </div>
-          </div>
+
+            <div className="grid grid-cols-2 gap-px border-b border-border bg-border sm:grid-cols-3">
+              {[
+                ['IND', preview.ind],
+                ['Código de caja', preview.box || '—'],
+                ['Supervisor', preview.supervisor || '—'],
+                ['Proceso', preview.process],
+                ['Método', preview.method],
+                [
+                  'Fecha',
+                  preview.date
+                    ? new Date(`${preview.date}T12:00:00`).toLocaleDateString('es-PE')
+                    : '—',
+                ],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0 bg-card px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className="mt-1 break-words text-sm font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-bold">Detalle de observaciones</h3>
+                <span className="rounded-md bg-muted px-2 py-1 text-xs font-bold">
+                  {preview.observations.length}
+                </span>
+              </div>
+
+              {preview.observations.length === 0 ? (
+                <p className="mt-4 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  Esta ficha no tiene observaciones registradas.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {preview.observations.map((observation, index) => (
+                    <article
+                      key={`${observation.code}-${index}`}
+                      className="rounded-lg border border-border p-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="grid size-8 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+                          <AlertTriangle size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-primary">
+                            {observation.code}
+                          </p>
+                          <h4 className="mt-0.5 text-sm font-semibold">
+                            {observation.description}
+                          </h4>
+                          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                            {observation.note}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <span className="rounded bg-muted px-2 py-1">
+                              {observation.plant}
+                            </span>
+                            <span className="rounded bg-muted px-2 py-1">
+                              Cantidad: {observation.quantity}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPreview(null)}
+                  className={secondaryButtonClass}
+                >
+                  Cerrar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => editReport(preview)}
+                  className={secondaryButtonClass}
+                >
+                  <PencilLine size={16} />
+                  Editar ficha
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => exportWorkbook(preview, preview.observations)}
+                  disabled={exporting}
+                  className={primaryButtonClass}
+                >
+                  <Download size={16} />
+                  Descargar Excel
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
-      {/* MENSAJE DE ESTADO */}
+      {/* Notificación */}
 
       {toast && (
         <div
           role="status"
-          className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[#173d32] px-4 py-3 text-sm font-bold text-white shadow-xl"
+          aria-live="polite"
+          className="fixed bottom-5 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-[#103958] px-4 py-3 text-sm font-semibold text-white shadow-xl"
         >
-          {toast}
+          <Check size={17} className="shrink-0 text-[#F2B827]" />
+          <span>{toast}</span>
         </div>
       )}
     </main>

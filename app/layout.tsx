@@ -1,18 +1,18 @@
+
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Checklist de inspección | Open',
-  description: 'Captura observaciones de calidad y descarga el reporte conservando el formato original de Excel.',
+  title: 'RMB SATECI | Control de Calidad',
+  description:
+    'Sistema de registro de inspecciones, observaciones de calidad y exportación de fichas a Excel.',
+  applicationName: 'RMB SATECI · Calidad',
 }
 
 export const viewport: Viewport = {
   colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
-  ],
+  themeColor: '#164B78',
 }
 
 export default function RootLayout({
