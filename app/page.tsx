@@ -250,7 +250,7 @@ const initialHistory: HistoryItem[] = [
     chassis: '001260',
     ind: '0126',
     box: '0126-CD',
-    supervisor: 'Carlos Pérez',
+    supervisor: 'Luis Castañeda',
     date: '2026-09-27',
     process: 'Final',
     method: 'Visual',
