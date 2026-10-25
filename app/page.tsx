@@ -1,8 +1,8 @@
-
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import ExcelJS from 'exceljs'
+import { supabase } from '@/lib/supabase'
 import {
   AlertTriangle,
   BadgeCheck,
@@ -191,7 +191,49 @@ type Observation = {
 }
 
 type HistoryItem = Metadata & {
+  id: string
+  status: string
   observations: Observation[]
+}
+
+type InspectionRow = {
+  id: string
+  ind: string
+  supervisor: string
+  chassis: string
+  box_code: string
+  process: string
+  inspection_date: string
+  method: string
+  status: string
+  inspection_observations: Array<{
+    code_snapshot: string
+    description_snapshot: string
+    note: string
+    quantity: number
+    plant: 'Planta 2' | 'Planta 3'
+  }>
+}
+
+function mapInspectionRow(row: InspectionRow): HistoryItem {
+  return {
+    id: row.id,
+    ind: row.ind,
+    supervisor: row.supervisor,
+    chassis: row.chassis,
+    box: row.box_code ?? '',
+    process: row.process,
+    date: row.inspection_date,
+    method: row.method,
+    status: row.status ?? 'No revisado',
+    observations: (row.inspection_observations ?? []).map((observation) => ({
+      code: observation.code_snapshot,
+      description: observation.description_snapshot,
+      note: observation.note ?? '',
+      quantity: String(observation.quantity ?? 1),
+      plant: observation.plant,
+    })),
+  }
 }
 
 /* =========================================================
@@ -217,72 +259,8 @@ const iconButtonClass =
   'inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
 
 /* =========================================================
-   DATOS DE PRUEBA DEL HISTORIAL
+   PLANTILLA EXCEL
 ========================================================= */
-
-const initialHistory: HistoryItem[] = [
-  {
-    chassis: '001250',
-    ind: '0125',
-    box: '0125-AB',
-    supervisor: 'Luis Castañeda',
-    date: '2026-09-27',
-    process: 'Montaje',
-    method: 'Visual',
-    observations: [
-      {
-        code: 'PE016',
-        description: 'Falta accesorio',
-        note: 'Falta accesorio en zona lateral',
-        quantity: '1',
-        plant: 'Planta 2',
-      },
-      {
-        code: 'PE074',
-        description: 'Pernos flojos',
-        note: 'Se encuentran pernos flojos en el conjunto',
-        quantity: '2',
-        plant: 'Planta 2',
-      },
-    ],
-  },
-  {
-    chassis: '001260',
-    ind: '0126',
-    box: '0126-CD',
-    supervisor: 'Luis Castañeda',
-    date: '2026-09-27',
-    process: 'Final',
-    method: 'Visual',
-    observations: [
-      {
-        code: 'PE041',
-        description: 'Rayaduras en pintura',
-        note: 'Rayadura visible en lateral derecho',
-        quantity: '1',
-        plant: 'Planta 3',
-      },
-    ],
-  },
-  {
-    chassis: '001270',
-    ind: '0127',
-    box: '0127-EF',
-    supervisor: 'Luis Castañeda',
-    date: '2026-09-27',
-    process: 'Visto Bueno',
-    method: 'Visual',
-    observations: [
-      {
-        code: 'PE001',
-        description: 'Defecto soldadura',
-        note: 'Defecto visible en soldadura',
-        quantity: '1',
-        plant: 'Planta 2',
-      },
-    ],
-  },
-]
 
 const EXCEL_CELLS = {
   dateHeader: 'D3',
@@ -319,9 +297,17 @@ export default function Page() {
   const [analyzing, setAnalyzing] = useState(false)
   const [savedObservations, setSavedObservations] = useState<Observation[]>([])
 
-  const [history, setHistory] = useState<HistoryItem[]>(initialHistory)
+  const [history, setHistory] = useState<HistoryItem[]>([])
   const [preview, setPreview] = useState<HistoryItem | null>(null)
   const [editingChassis, setEditingChassis] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [authChecking, setAuthChecking] = useState(true)
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const [toast, setToast] = useState('')
   const [exporting, setExporting] = useState(false)
@@ -335,6 +321,136 @@ export default function Page() {
   const showToast = (message: string) => {
     setToast(message)
     window.setTimeout(() => setToast(''), 2800)
+  }
+
+  /* Recuperar las fichas compartidas desde la nube */
+
+  const loadHistory = async () => {
+    if (!userEmail) return
+    setLoadingHistory(true)
+    try {
+      const { data, error } = await supabase
+        .from('inspections')
+        .select(`
+          id, ind, supervisor, chassis, box_code, process,
+          inspection_date, method, status,
+          inspection_observations (
+            code_snapshot, description_snapshot, note, quantity, plant
+          )
+        `)
+        .order('inspection_date', { ascending: false })
+        .order('updated_at', { ascending: false })
+
+      if (error) throw error
+      setHistory(((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
+    } catch (error) {
+      console.error('Error al cargar el historial de Supabase:', error)
+      showToast('No se pudo cargar el historial de la nube')
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  useEffect(() => {
+    let active = true
+
+    const initializeAuth = async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (!active) return
+      if (error) console.error('No se pudo recuperar la sesión:', error)
+      const email = data.session?.user.email ?? null
+      setUserEmail(email)
+      setAuthChecking(false)
+      if (email) {
+        const { data: rows, error: historyError } = await supabase
+          .from('inspections')
+          .select(`
+            id, ind, supervisor, chassis, box_code, process,
+            inspection_date, method, status,
+            inspection_observations (
+              code_snapshot, description_snapshot, note, quantity, plant
+            )
+          `)
+          .order('inspection_date', { ascending: false })
+          .order('updated_at', { ascending: false })
+        if (!active) return
+        if (historyError) {
+          console.error('Error al cargar el historial:', historyError)
+          setToast('Sesión iniciada, pero no se pudo cargar el historial')
+        } else {
+          setHistory(((rows ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
+        }
+      }
+    }
+
+    void initializeAuth()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const email = session?.user.email ?? null
+      setUserEmail(email)
+      setAuthChecking(false)
+      if (!email) {
+        setHistory([])
+        setEditingId(null)
+        setEditingChassis(null)
+      } else {
+        window.setTimeout(() => {
+          void supabase
+            .from('inspections')
+            .select(`
+              id, ind, supervisor, chassis, box_code, process,
+              inspection_date, method, status,
+              inspection_observations (
+                code_snapshot, description_snapshot, note, quantity, plant
+              )
+            `)
+            .order('inspection_date', { ascending: false })
+            .order('updated_at', { ascending: false })
+            .then(({ data, error }) => {
+              if (error) {
+                console.error('Error al cargar historial tras autenticar:', error)
+                setToast('No se pudo cargar el historial')
+              } else {
+                setHistory(((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
+              }
+            })
+        }, 0)
+      }
+    })
+
+    return () => {
+      active = false
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
+
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (authSubmitting) return
+    setAuthSubmitting(true)
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authEmail.trim(),
+      password: authPassword,
+    })
+    if (error) {
+      console.error('Error de inicio de sesión:', error)
+      showToast('No se pudo iniciar sesión. Verifica correo y contraseña.')
+    } else {
+      setAuthPassword('')
+      showToast('Sesión iniciada')
+    }
+    setAuthSubmitting(false)
+  }
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Error al cerrar sesión:', error)
+      showToast('No se pudo cerrar sesión')
+    } else {
+      setHistory([])
+      showToast('Sesión cerrada')
+    }
   }
 
   /* Catálogo de referencia */
@@ -360,15 +476,15 @@ export default function Page() {
     )
   }, [history, query])
 
-  /* Validación de chasis: excluye la ficha que se está editando */
+  /* Solo bloquea si, durante una edición, se intenta ocupar la clave de otra ficha. */
 
   const duplicateChassis =
-    metadata.chassis.trim() !== '' &&
+    editingId !== null &&
     history.some(
       (item) =>
+        item.id !== editingId &&
         item.chassis.trim() === metadata.chassis.trim() &&
-        (editingChassis === null ||
-          item.chassis.trim() !== editingChassis.trim()),
+        item.process === metadata.process,
     )
 
   /* Análisis simulado: aún no está conectado a un modelo de IA */
@@ -416,6 +532,7 @@ export default function Page() {
   /* Cargar ficha para edición */
 
   const editReport = (item: HistoryItem) => {
+    setEditingId(item.id)
     setEditingChassis(item.chassis)
 
     setMetadata({
@@ -443,6 +560,7 @@ export default function Page() {
   /* Cancelar edición */
 
   const cancelEdit = () => {
+    setEditingId(null)
     setEditingChassis(null)
 
     setMetadata({
@@ -465,42 +583,128 @@ export default function Page() {
     showToast('Edición cancelada')
   }
 
-  /* Guardar o actualizar ficha */
+  /* Guardar o actualizar ficha en Supabase */
 
-  const saveReport = () => {
+  const saveReport = async () => {
+    if (saving) return
+
     const chassis = metadata.chassis.trim()
     const ind = metadata.ind.trim()
 
-    if (!chassis || !ind) {
-      showToast('Completa el IND y el número de chasis')
+    if (!/^\d{4}$/.test(ind)) {
+      showToast('El IND debe tener exactamente 4 dígitos')
+      return
+    }
+
+    if (!chassis) {
+      showToast('Completa el número de chasis')
+      return
+    }
+
+    if (!metadata.supervisor.trim()) {
+      showToast('Completa el supervisor de calidad')
       return
     }
 
     if (duplicateChassis) {
-      showToast('Este chasis ya está registrado en otra ficha')
+      showToast('Ya existe otra ficha con ese chasis y proceso')
       return
     }
 
-    const report: HistoryItem = {
-      ...metadata,
-      chassis,
+    const invalidQuantity = savedObservations.some(
+      (observation) => !Number.isInteger(Number(observation.quantity)) || Number(observation.quantity) < 1,
+    )
+    if (invalidQuantity) {
+      showToast('Cada observación debe tener una cantidad mayor que cero')
+      return
+    }
+
+    setSaving(true)
+    const payload: Record<string, string> = {
       ind,
-      observations: savedObservations.map((observation) => ({ ...observation })),
+      supervisor: metadata.supervisor.trim(),
+      chassis,
+      box_code: metadata.box.trim(),
+      process: metadata.process,
+      inspection_date: metadata.date,
+      method: metadata.method || 'No definido',
     }
+    if (editingId) payload.id = editingId
 
-    if (editingChassis !== null) {
-      setHistory((current) =>
-        current.map((item) =>
-          item.chassis.trim() === editingChassis.trim() ? report : item,
-        ),
-      )
+    const observationsPayload = savedObservations.map((observation) => ({
+      code: observation.code,
+      description: observation.description,
+      note: observation.note,
+      quantity: String(Number(observation.quantity) || 1),
+      plant: observation.plant,
+    }))
 
+    try {
+      const { data, error } = await supabase.rpc('save_inspection', {
+        p_inspection: payload,
+        p_observations: observationsPayload,
+      })
+
+      if (error) throw error
+
+      await loadHistory()
+      setEditingId(null)
       setEditingChassis(null)
-      showToast('Ficha actualizada correctamente')
-    } else {
-      setHistory((current) => [report, ...current])
-      showToast('Ficha guardada correctamente')
+      showToast('Ficha guardada correctamente en la nube')
+      if (!data) console.warn('Supabase guardó la ficha, pero no devolvió su ID.')
+    } catch (error) {
+      console.error('Error al guardar la ficha en Supabase:', error)
+      showToast('No se pudo guardar. Revisa la conexión y los permisos de Supabase.')
+    } finally {
+      setSaving(false)
     }
+  }
+
+  /* Consultar una ficha actualizada en la nube antes de exportar */
+
+  const exportReportById = async (id: string) => {
+    if (exporting) return
+    const { data, error } = await supabase
+      .from('inspections')
+      .select(`
+        id, ind, supervisor, chassis, box_code, process,
+        inspection_date, method, status,
+        inspection_observations (
+          code_snapshot, description_snapshot, note, quantity, plant
+        )
+      `)
+      .eq('id', id)
+      .single()
+
+    if (error || !data) {
+      console.error('No se pudo recuperar la ficha para exportar:', error)
+      showToast('No se pudo recuperar la ficha desde la nube')
+      return
+    }
+
+    const report = mapInspectionRow(data as unknown as InspectionRow)
+    await exportWorkbook(report, report.observations)
+  }
+
+  const exportReportByKey = async () => {
+    const chassis = metadata.chassis.trim()
+    if (!chassis) {
+      showToast('Abre una ficha guardada para exportarla')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('inspections')
+      .select('id')
+      .eq('chassis', chassis)
+      .eq('process', metadata.process)
+      .maybeSingle()
+
+    if (error || !data) {
+      showToast('Primero guarda la ficha en la nube')
+      return
+    }
+    await exportReportById(data.id)
   }
 
   /* Exportar Excel */
@@ -561,7 +765,7 @@ export default function Page() {
       const link = document.createElement('a')
 
       link.href = url
-      link.download = `checklist-open-${report.chassis || 'reporte'}.xlsx`
+      link.download = `checklist-open-${report.chassis || 'reporte'}-${report.process.toLowerCase().replace(/\s+/g, '-')}.xlsx`
 
       document.body.appendChild(link)
       link.click()
@@ -580,6 +784,47 @@ export default function Page() {
   /* =======================================================
      INTERFAZ
   ======================================================= */
+
+  if (authChecking) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
+        <div className={`${panelClass} w-full max-w-md p-6 text-center`}>
+          <ClipboardCheck size={30} className="mx-auto text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Verificando sesión de Supabase…</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (!userEmail) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
+        <section className={`${panelClass} w-full max-w-md p-6 sm:p-8`}>
+          <div className="mx-auto grid size-12 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <ClipboardCheck size={25} />
+          </div>
+          <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">RMB SATECI · CALIDAD</p>
+          <h1 className="mt-1 text-center text-xl font-bold">Checklist de inspección</h1>
+          <p className="mt-2 text-center text-sm text-muted-foreground">Inicia sesión para acceder a los registros compartidos del equipo.</p>
+          <form onSubmit={handleLogin} className="mt-6 space-y-4">
+            <label className={labelClass}>
+              Correo electrónico
+              <input type="email" autoComplete="username" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} className={inputClass} placeholder="correo@empresa.com" />
+            </label>
+            <label className={labelClass}>
+              Contraseña
+              <input type="password" autoComplete="current-password" required value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} className={inputClass} placeholder="Contraseña" />
+            </label>
+            <button type="submit" disabled={authSubmitting} className={`${primaryButtonClass} w-full`}>
+              {authSubmitting ? 'Ingresando…' : 'Iniciar sesión'}
+            </button>
+          </form>
+          <p className="mt-4 text-xs leading-5 text-muted-foreground">Las cuentas deben crearse o invitarse desde el panel de Supabase. Esta pantalla no permite registros públicos.</p>
+        </section>
+        {toast && <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg">{toast}</div>}
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
@@ -600,23 +845,29 @@ export default function Page() {
               <h1 className="truncate text-base font-bold tracking-tight sm:text-lg">
                 Checklist de inspección
               </h1>
+              <p className="truncate text-[10px] text-muted-foreground">Sesión: {userEmail}</p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => exportWorkbook(metadata, savedObservations)}
-            disabled={exporting}
-            className={primaryButtonClass}
-          >
-            <FileSpreadsheet size={17} />
-            <span className="hidden sm:inline">
-              {exporting ? 'Preparando archivo…' : 'Exportar Excel'}
-            </span>
-            <span className="sm:hidden">
-              {exporting ? 'Preparando…' : 'Exportar'}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => (editingId ? exportReportById(editingId) : exportReportByKey())}
+              disabled={exporting}
+              className={primaryButtonClass}
+            >
+              <FileSpreadsheet size={17} />
+              <span className="hidden sm:inline">
+                {exporting ? 'Preparando archivo…' : 'Exportar Excel'}
+              </span>
+              <span className="sm:hidden">
+                {exporting ? 'Preparando…' : 'Exportar'}
+              </span>
+            </button>
+            <button type="button" onClick={handleLogout} className={secondaryButtonClass}>
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </header>
 
@@ -724,7 +975,7 @@ export default function Page() {
             </label>
 
             <label className={labelClass}>
-              Supervisor de calidad
+              Supervisor de calidad <span className="text-destructive">*</span>
               <input
                 value={metadata.supervisor}
                 onChange={(e) => setMeta('supervisor', e.target.value)}
@@ -754,7 +1005,7 @@ export default function Page() {
               {duplicateChassis && (
                 <p className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-destructive">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                  Este chasis pertenece a otra ficha registrada.
+                  Ya existe una ficha con ese chasis y proceso.
                 </p>
               )}
             </label>
@@ -1063,7 +1314,7 @@ export default function Page() {
             <button
               type="button"
               onClick={saveReport}
-              disabled={duplicateChassis}
+              disabled={duplicateChassis || saving}
               className={`${primaryButtonClass} mt-5 w-full`}
             >
               {editingChassis !== null ? (
@@ -1071,13 +1322,13 @@ export default function Page() {
               ) : (
                 <BadgeCheck size={17} />
               )}
-              {editingChassis !== null ? 'Guardar cambios' : 'Guardar ficha completa'}
+              {saving ? 'Guardando en la nube…' : editingChassis !== null ? 'Guardar cambios' : 'Guardar ficha completa'}
             </button>
 
             {duplicateChassis && (
               <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
                 <AlertTriangle size={14} />
-                Corrige el chasis antes de guardar.
+                Cambia el chasis o el proceso para evitar un conflicto.
               </p>
             )}
           </div>
@@ -1094,7 +1345,7 @@ export default function Page() {
               <div>
                 <h2 className="text-lg font-bold">Historial de inspecciones</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Consulta, actualiza o descarga las fichas registradas.
+                  Consulta, actualiza o descarga las fichas compartidas del equipo.
                 </p>
               </div>
             </div>
@@ -1116,10 +1367,10 @@ export default function Page() {
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-5 py-3">
             <p className="text-xs text-muted-foreground">
-              Resultados: <strong className="text-foreground">{filteredHistory.length}</strong>
+              Resultados: <strong className="text-foreground">{filteredHistory.length}</strong>{loadingHistory ? ' · Sincronizando…' : ''}
             </p>
             <p className="text-xs text-muted-foreground">
-              Los datos se mantienen en memoria durante esta sesión.
+              Registros compartidos desde Supabase.
             </p>
           </div>
 
@@ -1140,7 +1391,7 @@ export default function Page() {
 
               <tbody className="divide-y divide-border">
                 {filteredHistory.map((item) => (
-                  <tr key={item.chassis} className="transition-colors hover:bg-muted/40">
+                  <tr key={item.id} className="transition-colors hover:bg-muted/40">
                     <td className="whitespace-nowrap px-5 py-4">
                       <span className="font-mono font-bold text-primary">
                         {item.chassis}
@@ -1162,7 +1413,7 @@ export default function Page() {
                     <td className="px-4 py-4">
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         <Check size={14} />
-                        Registrado
+                        {item.status || 'No revisado'}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -1187,7 +1438,7 @@ export default function Page() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => exportWorkbook(item, item.observations)}
+                          onClick={() => exportReportById(item.id)}
                           aria-label={`Descargar Excel ${item.chassis}`}
                           title="Descargar Excel"
                           disabled={exporting}
@@ -1421,7 +1672,7 @@ export default function Page() {
 
                 <button
                   type="button"
-                  onClick={() => exportWorkbook(preview, preview.observations)}
+                  onClick={() => exportReportById(preview.id)}
                   disabled={exporting}
                   className={primaryButtonClass}
                 >
