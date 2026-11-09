@@ -1,14 +1,11 @@
+
 'use client'
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import ExcelJS from 'exceljs'
-import { supabase } from '@/lib/supabase'
 import {
   AlertTriangle,
   BadgeCheck,
   CalendarDays,
   Check,
-  ChevronDown,
   ClipboardCheck,
   ClipboardList,
   Download,
@@ -21,220 +18,7 @@ import {
   X,
 } from 'lucide-react'
 
-/* =========================================================
-   CATÁLOGO DE OBSERVACIONES
-========================================================= */
-
-const sections = [
-  { id: '01', title: 'Eléctrico', items: [['PE059', 'Falla eléctrica']] },
-  {
-    id: '03',
-    title: 'Hidráulico',
-    items: [
-      ['PE051', 'Falta aceite hidráulico'],
-      ['PE052', 'Fuga aceite'],
-      ['PE053', 'Fuga agua'],
-      ['PE054', 'Fuga aire'],
-      ['PE080', 'Mal ruteo'],
-      ['PE081', 'Falla al bascular'],
-    ],
-  },
-  {
-    id: '05',
-    title: 'Pintura',
-    items: [
-      ['PE006', 'Bajo espesor pintura'],
-      ['PE007', 'Exceso espesor pintura'],
-      ['PE038', 'Zona por retocar'],
-      ['PE039', 'Mala preparación de superficie'],
-      ['PE040', 'Falta limpieza mecánica'],
-      ['PE041', 'Rayaduras en pintura'],
-      ['PE072', 'Falta de sika'],
-      ['PE073', 'Falta de sticker, cinta reflectivas'],
-    ],
-  },
-  {
-    id: '12',
-    title: 'Soldadura',
-    items: [
-      ['PE001', 'Defecto soldadura'],
-      ['PE003', 'Soldadura incompleta'],
-      ['PE004', 'Salpicadura'],
-      ['PE005', 'Punto de soldadura'],
-      ['PE017', 'Golpe de arco'],
-      ['PE018', 'Falta coronar'],
-      ['PE019', 'Fisuras'],
-      ['PE025', 'Falta fusión'],
-      ['PE026', 'Cateto insuficiente'],
-      ['PE027', 'Soldadura cóncava'],
-      ['PE028', 'Descolgamiento'],
-      ['PE029', 'Cráter'],
-      ['PE030', 'Socavación'],
-      ['PE031', 'Porosidad'],
-      ['PE032', 'Soldadura convexa'],
-      ['PE083', 'Mala preparación de junta'],
-    ],
-  },
-  {
-    id: '14',
-    title: 'Ensamble',
-    items: [
-      ['PE011', 'Armado incorrecto'],
-      ['PE016', 'Falta accesorio'],
-      ['PE042', 'Accesorio fuera de especificación'],
-      ['PE043', 'Accesorio desprendido'],
-      ['PE044', 'Instalación incorrecta'],
-      ['PE045', 'Ubicación incorrecta'],
-      ['PE074', 'Pernos flojos'],
-      ['PE075', 'Pernos cortos'],
-      ['PE076', 'Regulación de accesorios'],
-      ['PE077', 'Trabajos incompletos'],
-      ['PE085', 'Orden y limpieza'],
-    ],
-  },
-  {
-    id: '15',
-    title: 'Material',
-    items: [
-      ['PE008', 'Deformación estructural'],
-      ['PE012', 'Daño material'],
-      ['PE046', 'Oxidación'],
-    ],
-  },
-  {
-    id: '16',
-    title: 'Ingeniería / Diseño',
-    items: [
-      ['PE047', 'Mal diseño plano'],
-      ['PE048', 'Falta actualización planos'],
-      ['PE049', 'Plano incompleto'],
-      ['PE050', 'Incongruencia EE.TT'],
-    ],
-  },
-  {
-    id: '17',
-    title: 'Funcionamiento',
-    items: [
-      ['PE010', 'Falla de funcionamiento de accesorio'],
-      ['PE055', 'Falla mecanismo apertura'],
-      ['PE056', 'Juego excesivo'],
-      ['PE057', 'Ruido anormal'],
-      ['PE058', 'Falta engrase'],
-      ['PE078', 'Rozamiento'],
-      ['PE079', 'Ángulo no conforme'],
-    ],
-  },
-  {
-    id: '18',
-    title: 'Dimensional',
-    items: [
-      ['PE009', 'Desalineamiento'],
-      ['PE015', 'Agujeros faltantes'],
-      ['PE060', 'Fuera de medida'],
-      ['PE061', 'Luz en viga'],
-      ['PE062', 'Luz en zapata'],
-      ['PE063', 'Luz en compuerta'],
-    ],
-  },
-  {
-    id: '19',
-    title: 'Corte / Mecanizado',
-    items: [
-      ['PE013', 'Rebabas'],
-      ['PE064', 'Muescas'],
-      ['PE065', 'Filos cortantes'],
-    ],
-  },
-  {
-    id: '20',
-    title: 'Chasis post carrozado',
-    items: [
-      ['PE066', 'Daño en componentes del chasis'],
-      ['PE067', 'Daño en cabina'],
-      ['PE068', 'Tanque silenciador'],
-      ['PE069', 'Tanque combustible'],
-      ['PE070', 'Pulmón de aire'],
-      ['PE071', 'Cámara de retroceso'],
-      ['PE082', 'Daño de batería'],
-    ],
-  },
-]
-
-const allItems = sections.flatMap((section) =>
-  section.items.map(([code, description]) => ({
-    code,
-    description,
-    section: section.title,
-  })),
-)
-
-/* =========================================================
-   TIPOS
-========================================================= */
-
-type Metadata = {
-  ind: string
-  supervisor: string
-  chassis: string
-  box: string
-  process: string
-  date: string
-  method: string
-}
-
-type Observation = {
-  code: string
-  description: string
-  note: string
-  quantity: string
-  plant: 'Planta 2' | 'Planta 3'
-}
-
-type HistoryItem = Metadata & {
-  id: string
-  status: string
-  observations: Observation[]
-}
-
-type InspectionRow = {
-  id: string
-  ind: string
-  supervisor: string
-  chassis: string
-  box_code: string
-  process: string
-  inspection_date: string
-  method: string
-  status: string
-  inspection_observations: Array<{
-    code_snapshot: string
-    description_snapshot: string
-    note: string
-    quantity: number
-    plant: 'Planta 2' | 'Planta 3'
-  }>
-}
-
-function mapInspectionRow(row: InspectionRow): HistoryItem {
-  return {
-    id: row.id,
-    ind: row.ind,
-    supervisor: row.supervisor,
-    chassis: row.chassis,
-    box: row.box_code ?? '',
-    process: row.process,
-    date: row.inspection_date,
-    method: row.method,
-    status: row.status ?? 'No revisado',
-    observations: (row.inspection_observations ?? []).map((observation) => ({
-      code: observation.code_snapshot,
-      description: observation.description_snapshot,
-      note: observation.note ?? '',
-      quantity: String(observation.quantity ?? 1),
-      plant: observation.plant,
-    })),
-  }
-}
+import { MANUAL_SELECTION, useChecklist } from '@/hooks/useChecklist'
 
 /* =========================================================
    ESTILOS REUTILIZABLES
@@ -259,527 +43,81 @@ const iconButtonClass =
   'inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
 
 /* =========================================================
-   PLANTILLA EXCEL
-========================================================= */
-
-const EXCEL_CELLS = {
-  dateHeader: 'D3',
-  ind: 'C5',
-  supervisor: 'C6',
-  chassis: 'C7',
-  box: 'I5',
-  date: 'I6',
-  process: 'I7',
-  method: 'B11',
-  observations: 'B14',
-} as const
-
-/* =========================================================
    COMPONENTE PRINCIPAL
 ========================================================= */
 
 export default function Page() {
-  const [metadata, setMetadata] = useState<Metadata>({
-    ind: '',
-    supervisor: '',
-    chassis: '',
-    box: '',
-    process: 'Montaje',
-    date: new Date().toISOString().slice(0, 10),
-    method: 'Visual',
-  })
-
-  const [note, setNote] = useState('')
-  const [plant, setPlant] = useState<'Planta 2' | 'Planta 3'>('Planta 2')
-  const [quantity, setQuantity] = useState('1')
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [savedObservations, setSavedObservations] = useState<Observation[]>([])
-
-  const [history, setHistory] = useState<HistoryItem[]>([])
-  const [preview, setPreview] = useState<HistoryItem | null>(null)
-  const [editingChassis, setEditingChassis] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
-  const [authChecking, setAuthChecking] = useState(true)
-  const [authEmail, setAuthEmail] = useState('')
-  const [authPassword, setAuthPassword] = useState('')
-  const [authSubmitting, setAuthSubmitting] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
-
-  const [toast, setToast] = useState('')
-  const [exporting, setExporting] = useState(false)
-  const [query, setQuery] = useState('')
-  const [activeSection, setActiveSection] = useState('Todos')
-
-  const setMeta = (key: keyof Metadata, value: string) => {
-    setMetadata((current) => ({ ...current, [key]: value }))
-  }
-
-  const showToast = (message: string) => {
-    setToast(message)
-    window.setTimeout(() => setToast(''), 2800)
-  }
-
-  /* Recuperar las fichas compartidas desde la nube */
-
-  const loadHistory = async () => {
-    if (!userEmail) return
-    setLoadingHistory(true)
-    try {
-      const { data, error } = await supabase
-        .from('inspections')
-        .select(`
-          id, ind, supervisor, chassis, box_code, process,
-          inspection_date, method, status,
-          inspection_observations (
-            code_snapshot, description_snapshot, note, quantity, plant
-          )
-        `)
-        .order('inspection_date', { ascending: false })
-        .order('updated_at', { ascending: false })
-
-      if (error) throw error
-      setHistory(((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
-    } catch (error) {
-      console.error('Error al cargar el historial de Supabase:', error)
-      showToast('No se pudo cargar el historial de la nube')
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
-
-  useEffect(() => {
-    let active = true
-
-    const initializeAuth = async () => {
-      const { data, error } = await supabase.auth.getSession()
-      if (!active) return
-      if (error) console.error('No se pudo recuperar la sesión:', error)
-      const email = data.session?.user.email ?? null
-      setUserEmail(email)
-      setAuthChecking(false)
-      if (email) {
-        const { data: rows, error: historyError } = await supabase
-          .from('inspections')
-          .select(`
-            id, ind, supervisor, chassis, box_code, process,
-            inspection_date, method, status,
-            inspection_observations (
-              code_snapshot, description_snapshot, note, quantity, plant
-            )
-          `)
-          .order('inspection_date', { ascending: false })
-          .order('updated_at', { ascending: false })
-        if (!active) return
-        if (historyError) {
-          console.error('Error al cargar el historial:', historyError)
-          setToast('Sesión iniciada, pero no se pudo cargar el historial')
-        } else {
-          setHistory(((rows ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
-        }
-      }
-    }
-
-    void initializeAuth()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      const email = session?.user.email ?? null
-      setUserEmail(email)
-      setAuthChecking(false)
-      if (!email) {
-        setHistory([])
-        setEditingId(null)
-        setEditingChassis(null)
-      } else {
-        window.setTimeout(() => {
-          void supabase
-            .from('inspections')
-            .select(`
-              id, ind, supervisor, chassis, box_code, process,
-              inspection_date, method, status,
-              inspection_observations (
-                code_snapshot, description_snapshot, note, quantity, plant
-              )
-            `)
-            .order('inspection_date', { ascending: false })
-            .order('updated_at', { ascending: false })
-            .then(({ data, error }) => {
-              if (error) {
-                console.error('Error al cargar historial tras autenticar:', error)
-                setToast('No se pudo cargar el historial')
-              } else {
-                setHistory(((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
-              }
-            })
-        }, 0)
-      }
-    })
-
-    return () => {
-      active = false
-      authListener.subscription.unsubscribe()
-    }
-  }, [])
-
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (authSubmitting) return
-    setAuthSubmitting(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: authEmail.trim(),
-      password: authPassword,
-    })
-    if (error) {
-      console.error('Error de inicio de sesión:', error)
-      showToast('No se pudo iniciar sesión. Verifica correo y contraseña.')
-    } else {
-      setAuthPassword('')
-      showToast('Sesión iniciada')
-    }
-    setAuthSubmitting(false)
-  }
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('Error al cerrar sesión:', error)
-      showToast('No se pudo cerrar sesión')
-    } else {
-      setHistory([])
-      showToast('Sesión cerrada')
-    }
-  }
-
-  /* Catálogo de referencia */
-
-  const filteredItems = useMemo(() => {
-    return allItems.filter(
-      (item) =>
-        activeSection === 'Todos' || item.section === activeSection,
-    )
-  }, [activeSection])
-
-  /* Historial */
-
-  const filteredHistory = useMemo(() => {
-    const search = query.trim().toLowerCase()
-
-    if (!search) return history
-
-    return history.filter((item) =>
-      `${item.chassis} ${item.ind} ${item.box} ${item.supervisor} ${item.process}`
-        .toLowerCase()
-        .includes(search),
-    )
-  }, [history, query])
-
-  /* Solo bloquea si, durante una edición, se intenta ocupar la clave de otra ficha. */
-
-  const duplicateChassis =
-    editingId !== null &&
-    history.some(
-      (item) =>
-        item.id !== editingId &&
-        item.chassis.trim() === metadata.chassis.trim() &&
-        item.process === metadata.process,
-    )
-
-  /* Análisis simulado: aún no está conectado a un modelo de IA */
-
-  const analyze = () => {
-    if (!note.trim()) return
-
-    setAnalyzing(true)
-    setSelected(null)
-
-    window.setTimeout(() => {
-      setSuggestions([
-        'Falta de accesorio',
-        'Instalación incorrecta',
-        'Trabajos incompletos',
-      ])
-      setAnalyzing(false)
-    }, 500)
-  }
-
-  /* Guardar observación */
-
-  const saveObservation = () => {
-    if (!selected || !note.trim() || !metadata.chassis.trim()) return
-
-    const matchedItem = allItems.find(
-      (item) => item.description === selected,
-    )
-
-    const observation: Observation = {
-      code: matchedItem?.code ?? 'MANUAL',
-      description: selected,
-      note: note.trim(),
-      quantity: quantity || '1',
-      plant,
-    }
-
-    setSavedObservations((current) => [...current, observation])
-    setNote('')
-    setSuggestions([])
-    setSelected(null)
-    showToast('Observación agregada a la ficha')
-  }
-
-  /* Cargar ficha para edición */
-
-  const editReport = (item: HistoryItem) => {
-    setEditingId(item.id)
-    setEditingChassis(item.chassis)
-
-    setMetadata({
-      ind: item.ind,
-      supervisor: item.supervisor,
-      chassis: item.chassis,
-      box: item.box,
-      process: item.process,
-      date: item.date,
-      method: item.method,
-    })
-
-    setSavedObservations(item.observations.map((observation) => ({ ...observation })))
-    setNote('')
-    setSuggestions([])
-    setSelected(null)
-    setPlant('Planta 2')
-    setQuantity('1')
-    setPreview(null)
-
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    showToast(`Ficha ${item.chassis} cargada para edición`)
-  }
-
-  /* Cancelar edición */
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setEditingChassis(null)
-
-    setMetadata({
-      ind: '',
-      supervisor: '',
-      chassis: '',
-      box: '',
-      process: 'Montaje',
-      date: new Date().toISOString().slice(0, 10),
-      method: 'Visual',
-    })
-
-    setSavedObservations([])
-    setNote('')
-    setSuggestions([])
-    setSelected(null)
-    setPlant('Planta 2')
-    setQuantity('1')
-
-    showToast('Edición cancelada')
-  }
-
-  /* Guardar o actualizar ficha en Supabase */
-
-  const saveReport = async () => {
-    if (saving) return
-
-    const chassis = metadata.chassis.trim()
-    const ind = metadata.ind.trim()
-
-    if (!/^\d{4}$/.test(ind)) {
-      showToast('El IND debe tener exactamente 4 dígitos')
-      return
-    }
-
-    if (!chassis) {
-      showToast('Completa el número de chasis')
-      return
-    }
-
-    if (!metadata.supervisor.trim()) {
-      showToast('Completa el supervisor de calidad')
-      return
-    }
-
-    if (duplicateChassis) {
-      showToast('Ya existe otra ficha con ese chasis y proceso')
-      return
-    }
-
-    const invalidQuantity = savedObservations.some(
-      (observation) => !Number.isInteger(Number(observation.quantity)) || Number(observation.quantity) < 1,
-    )
-    if (invalidQuantity) {
-      showToast('Cada observación debe tener una cantidad mayor que cero')
-      return
-    }
-
-    setSaving(true)
-    const payload: Record<string, string> = {
-      ind,
-      supervisor: metadata.supervisor.trim(),
-      chassis,
-      box_code: metadata.box.trim(),
-      process: metadata.process,
-      inspection_date: metadata.date,
-      method: metadata.method || 'No definido',
-    }
-    if (editingId) payload.id = editingId
-
-    const observationsPayload = savedObservations.map((observation) => ({
-      code: observation.code,
-      description: observation.description,
-      note: observation.note,
-      quantity: String(Number(observation.quantity) || 1),
-      plant: observation.plant,
-    }))
-
-    try {
-      const { data, error } = await supabase.rpc('save_inspection', {
-        p_inspection: payload,
-        p_observations: observationsPayload,
-      })
-
-      if (error) throw error
-
-      await loadHistory()
-      setEditingId(null)
-      setEditingChassis(null)
-      showToast('Ficha guardada correctamente en la nube')
-      if (!data) console.warn('Supabase guardó la ficha, pero no devolvió su ID.')
-    } catch (error) {
-      console.error('Error al guardar la ficha en Supabase:', error)
-      showToast('No se pudo guardar. Revisa la conexión y los permisos de Supabase.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  /* Consultar una ficha actualizada en la nube antes de exportar */
-
-  const exportReportById = async (id: string) => {
-    if (exporting) return
-    const { data, error } = await supabase
-      .from('inspections')
-      .select(`
-        id, ind, supervisor, chassis, box_code, process,
-        inspection_date, method, status,
-        inspection_observations (
-          code_snapshot, description_snapshot, note, quantity, plant
-        )
-      `)
-      .eq('id', id)
-      .single()
-
-    if (error || !data) {
-      console.error('No se pudo recuperar la ficha para exportar:', error)
-      showToast('No se pudo recuperar la ficha desde la nube')
-      return
-    }
-
-    const report = mapInspectionRow(data as unknown as InspectionRow)
-    await exportWorkbook(report, report.observations)
-  }
-
-  const exportReportByKey = async () => {
-    const chassis = metadata.chassis.trim()
-    if (!chassis) {
-      showToast('Abre una ficha guardada para exportarla')
-      return
-    }
-
-    const { data, error } = await supabase
-      .from('inspections')
-      .select('id')
-      .eq('chassis', chassis)
-      .eq('process', metadata.process)
-      .maybeSingle()
-
-    if (error || !data) {
-      showToast('Primero guarda la ficha en la nube')
-      return
-    }
-    await exportReportById(data.id)
-  }
-
-  /* Exportar Excel */
-
-  async function exportWorkbook(
-    report: Metadata,
-    observations: Observation[] = savedObservations,
-  ) {
-    if (exporting) return
-
-    setExporting(true)
-
-    try {
-      const response = await fetch('/checklist-template.xlsx')
-
-      if (!response.ok) {
-        throw new Error('No se pudo cargar la plantilla de Excel')
-      }
-
-      const workbook = new ExcelJS.Workbook()
-      await workbook.xlsx.load(await response.arrayBuffer())
-
-      const sheet = workbook.worksheets[0]
-
-      if (!sheet) {
-        throw new Error('La plantilla no contiene hojas de cálculo')
-      }
-
-      sheet.getCell(EXCEL_CELLS.dateHeader).value = report.date
-        ? new Date(`${report.date}T12:00:00`)
-        : ''
-
-      sheet.getCell(EXCEL_CELLS.ind).value = report.ind
-      sheet.getCell(EXCEL_CELLS.supervisor).value = report.supervisor
-      sheet.getCell(EXCEL_CELLS.chassis).value = report.chassis
-      sheet.getCell(EXCEL_CELLS.box).value = report.box
-
-      sheet.getCell(EXCEL_CELLS.date).value = report.date
-        ? new Date(`${report.date}T12:00:00`)
-        : ''
-
-      sheet.getCell(EXCEL_CELLS.process).value = report.process
-      sheet.getCell(EXCEL_CELLS.method).value = report.method
-
-      sheet.getCell(EXCEL_CELLS.observations).value = observations
-        .map(
-          (item) =>
-            `${item.code} — ${item.description}: ${item.note} (Cantidad: ${item.quantity}) [${item.plant}]`,
-        )
-        .join('\n')
-
-      const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
-
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-
-      link.href = url
-      link.download = `checklist-open-${report.chassis || 'reporte'}-${report.process.toLowerCase().replace(/\s+/g, '-')}.xlsx`
-
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-      showToast('Excel descargado correctamente')
-    } catch (error) {
-      console.error('Error al generar Excel:', error)
-      showToast('No se pudo generar el Excel')
-    } finally {
-      setExporting(false)
-    }
-  }
+  const {
+    // Catálogo
+    allItems,
+    filteredItems,
+    sections,
+
+    // Datos de la ficha
+    metadata,
+    setMeta,
+
+    // Observación actual
+    note,
+    setNote,
+    plant,
+    setPlant,
+    quantity,
+    setQuantity,
+    suggestions,
+    setSuggestions,
+    selected,
+    setSelected,
+    analyzing,
+    analysisComplete,
+    setAnalysisComplete,
+
+    // Observaciones guardadas
+    savedObservations,
+    deleteObservation,
+
+    // Historial y vista previa
+    filteredHistory,
+    loadingHistory,
+    preview,
+    setPreview,
+    query,
+    setQuery,
+
+    // Edición
+    editingChassis,
+    editingId,
+    duplicateChassis,
+
+    // Autenticación
+    userEmail,
+    authChecking,
+    authEmail,
+    setAuthEmail,
+    authPassword,
+    setAuthPassword,
+    authSubmitting,
+
+    // Estados de operaciones
+    saving,
+    exporting,
+    toast,
+
+    // Catálogo
+    activeSection,
+    setActiveSection,
+
+    // Funciones
+    handleLogin,
+    handleLogout,
+    analyze,
+    saveObservation,
+    editReport,
+    cancelEdit,
+    saveReport,
+    exportReportById,
+    exportReportByKey,
+  } = useChecklist()
 
   /* =======================================================
      INTERFAZ
@@ -790,7 +128,9 @@ export default function Page() {
       <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
         <div className={`${panelClass} w-full max-w-md p-6 text-center`}>
           <ClipboardCheck size={30} className="mx-auto text-primary" />
-          <p className="mt-3 text-sm text-muted-foreground">Verificando sesión de Supabase…</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Verificando sesión de Supabase…
+          </p>
         </div>
       </main>
     )
@@ -803,25 +143,69 @@ export default function Page() {
           <div className="mx-auto grid size-12 place-items-center rounded-xl bg-primary text-primary-foreground">
             <ClipboardCheck size={25} />
           </div>
-          <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">RMB SATECI · CALIDAD</p>
-          <h1 className="mt-1 text-center text-xl font-bold">Checklist de inspección</h1>
-          <p className="mt-2 text-center text-sm text-muted-foreground">Inicia sesión para acceder a los registros compartidos del equipo.</p>
+
+          <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+            RMB SATECI · CALIDAD
+          </p>
+
+          <h1 className="mt-1 text-center text-xl font-bold">
+            Checklist de inspección
+          </h1>
+
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            Inicia sesión para acceder a los registros compartidos del equipo.
+          </p>
+
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <label className={labelClass}>
               Correo electrónico
-              <input type="email" autoComplete="username" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} className={inputClass} placeholder="correo@empresa.com" />
+              <input
+                type="email"
+                autoComplete="username"
+                required
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                className={inputClass}
+                placeholder="correo@empresa.com"
+              />
             </label>
+
             <label className={labelClass}>
               Contraseña
-              <input type="password" autoComplete="current-password" required value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} className={inputClass} placeholder="Contraseña" />
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                className={inputClass}
+                placeholder="Contraseña"
+              />
             </label>
-            <button type="submit" disabled={authSubmitting} className={`${primaryButtonClass} w-full`}>
+
+            <button
+              type="submit"
+              disabled={authSubmitting}
+              className={`${primaryButtonClass} w-full`}
+            >
               {authSubmitting ? 'Ingresando…' : 'Iniciar sesión'}
             </button>
           </form>
-          <p className="mt-4 text-xs leading-5 text-muted-foreground">Las cuentas deben crearse o invitarse desde el panel de Supabase. Esta pantalla no permite registros públicos.</p>
+
+          <p className="mt-4 text-xs leading-5 text-muted-foreground">
+            Las cuentas deben crearse o invitarse desde el panel de Supabase.
+            Esta pantalla no permite registros públicos.
+          </p>
         </section>
-        {toast && <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg">{toast}</div>}
+
+        {toast && (
+          <div
+            role="status"
+            className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg"
+          >
+            {toast}
+          </div>
+        )}
       </main>
     )
   }
@@ -842,29 +226,44 @@ export default function Page() {
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 RMB SATECI · CALIDAD
               </p>
+
               <h1 className="truncate text-base font-bold tracking-tight sm:text-lg">
                 Checklist de inspección
               </h1>
-              <p className="truncate text-[10px] text-muted-foreground">Sesión: {userEmail}</p>
+
+              <p className="truncate text-[10px] text-muted-foreground">
+                Sesión: {userEmail}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => (editingId ? exportReportById(editingId) : exportReportByKey())}
+              onClick={() =>
+                editingId
+                  ? exportReportById(editingId)
+                  : exportReportByKey()
+              }
               disabled={exporting}
               className={primaryButtonClass}
             >
               <FileSpreadsheet size={17} />
+
               <span className="hidden sm:inline">
                 {exporting ? 'Preparando archivo…' : 'Exportar Excel'}
               </span>
+
               <span className="sm:hidden">
                 {exporting ? 'Preparando…' : 'Exportar'}
               </span>
             </button>
-            <button type="button" onClick={handleLogout} className={secondaryButtonClass}>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={secondaryButtonClass}
+            >
               Cerrar sesión
             </button>
           </div>
@@ -901,6 +300,7 @@ export default function Page() {
                 <p className="text-2xl font-bold tabular-nums">
                   {savedObservations.length.toString().padStart(2, '0')}
                 </p>
+
                 <p className="mt-0.5 text-xs text-white/70">
                   Observaciones
                 </p>
@@ -910,6 +310,7 @@ export default function Page() {
                 <p className="text-2xl font-bold tabular-nums">
                   {allItems.length}
                 </p>
+
                 <p className="mt-0.5 text-xs text-white/70">
                   Códigos disponibles
                 </p>
@@ -928,6 +329,7 @@ export default function Page() {
               <div className="grid size-9 place-items-center rounded-lg bg-secondary text-primary">
                 <ClipboardList size={19} />
               </div>
+
               <div>
                 <h2 className="font-bold">Datos de la unidad</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
@@ -1060,6 +462,7 @@ export default function Page() {
                   size={16}
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
+
                 <input
                   type="date"
                   value={metadata.date}
@@ -1086,7 +489,11 @@ export default function Page() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                   Registro técnico
                 </p>
-                <h2 className="mt-1 text-lg font-bold">Nueva observación</h2>
+
+                <h2 className="mt-1 text-lg font-bold">
+                  Nueva observación
+                </h2>
+
                 <p className="mt-1 text-sm leading-5 text-muted-foreground">
                   Describe el hallazgo y selecciona el código que mejor lo representa.
                 </p>
@@ -1097,7 +504,12 @@ export default function Page() {
               Descripción del hallazgo
               <textarea
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={(e) => {
+                  setNote(e.target.value)
+                  setSuggestions([])
+                  setSelected(null)
+                  setAnalysisComplete(false)
+                }}
                 placeholder="Ej. Se observa un accesorio flojo en la zona lateral..."
                 rows={4}
                 className={`${inputClass} resize-y`}
@@ -1108,6 +520,7 @@ export default function Page() {
               <p className="text-xs text-muted-foreground">
                 La clasificación sugerida es una ayuda para el registro.
               </p>
+
               <button
                 type="button"
                 onClick={analyze}
@@ -1119,20 +532,31 @@ export default function Page() {
               </button>
             </div>
 
-            {suggestions.length > 0 && (
+            {analysisComplete && (
               <div className="mt-6 border-t border-border pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-bold">Clasificación de la observación</h3>
+                  <h3 className="text-sm font-bold">
+                    Sugerencias de clasificación
+                  </h3>
+
                   <span className="text-xs text-muted-foreground">
-                    Selecciona una opción
+                    Selecciona la que mejor corresponda
                   </span>
                 </div>
 
                 <div className="mt-3 space-y-2">
+                  {suggestions.length === 0 && (
+                    <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                      No encontramos coincidencias. Puedes registrar el texto
+                      escrito como observación manual.
+                    </p>
+                  )}
+
                   {suggestions.map((suggestion, index) => {
                     const match = allItems.find(
                       (item) => item.description === suggestion,
                     )
+
                     const isSelected = selected === suggestion
 
                     return (
@@ -1160,8 +584,11 @@ export default function Page() {
                           <span className="block text-sm font-semibold">
                             {suggestion}
                           </span>
+
                           <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {match ? `${match.code} · ${match.section}` : 'Registro manual'}
+                            {match
+                              ? `${match.code} · ${match.section}`
+                              : 'Registro manual'}
                           </span>
                         </span>
 
@@ -1174,15 +601,15 @@ export default function Page() {
 
                   <button
                     type="button"
-                    onClick={() => setSelected('Otra / no coincide')}
+                    onClick={() => setSelected(MANUAL_SELECTION)}
                     className={`flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-left text-sm font-semibold transition ${
-                      selected === 'Otra / no coincide'
+                      selected === MANUAL_SELECTION
                         ? 'border-primary bg-secondary text-primary'
                         : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
                     }`}
                   >
                     <Plus size={16} />
-                    Ninguna coincide: registrar como observación manual
+                    Ninguna coincide: agregar el texto manualmente
                   </button>
                 </div>
 
@@ -1240,8 +667,12 @@ export default function Page() {
                 <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
                   <ClipboardList size={20} />
                 </div>
+
                 <div>
-                  <h2 className="text-lg font-bold">Observaciones de la ficha</h2>
+                  <h2 className="text-lg font-bold">
+                    Observaciones de la ficha
+                  </h2>
+
                   <p className="mt-1 text-sm text-muted-foreground">
                     Revisa los hallazgos antes de guardar.
                   </p>
@@ -1255,8 +686,15 @@ export default function Page() {
 
             {savedObservations.length === 0 ? (
               <div className="mt-5 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8 text-center">
-                <ClipboardList size={26} className="mx-auto text-muted-foreground/60" />
-                <p className="mt-3 text-sm font-semibold">Sin observaciones registradas</p>
+                <ClipboardList
+                  size={26}
+                  className="mx-auto text-muted-foreground/60"
+                />
+
+                <p className="mt-3 text-sm font-semibold">
+                  Sin observaciones registradas
+                </p>
+
                 <p className="mt-1 text-xs text-muted-foreground">
                   Las observaciones que agregues aparecerán aquí.
                 </p>
@@ -1277,9 +715,11 @@ export default function Page() {
                         <p className="text-xs font-bold text-primary">
                           {item.code}
                         </p>
+
                         <h3 className="mt-0.5 text-sm font-semibold">
                           {item.description}
                         </h3>
+
                         <p className="mt-1 break-words text-sm text-muted-foreground">
                           {item.note}
                         </p>
@@ -1287,11 +727,7 @@ export default function Page() {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          setSavedObservations((current) =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
+                        onClick={() => deleteObservation(index)}
                         aria-label={`Eliminar observación ${item.code}`}
                         title="Eliminar observación"
                         className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
@@ -1301,7 +737,10 @@ export default function Page() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
-                      <span className="rounded-md bg-muted px-2 py-1">{item.plant}</span>
+                      <span className="rounded-md bg-muted px-2 py-1">
+                        {item.plant}
+                      </span>
+
                       <span className="rounded-md bg-muted px-2 py-1">
                         Cantidad: {item.quantity}
                       </span>
@@ -1322,7 +761,12 @@ export default function Page() {
               ) : (
                 <BadgeCheck size={17} />
               )}
-              {saving ? 'Guardando en la nube…' : editingChassis !== null ? 'Guardar cambios' : 'Guardar ficha completa'}
+
+              {saving
+                ? 'Guardando en la nube…'
+                : editingChassis !== null
+                  ? 'Guardar cambios'
+                  : 'Guardar ficha completa'}
             </button>
 
             {duplicateChassis && (
@@ -1342,8 +786,12 @@ export default function Page() {
               <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
                 <History size={21} />
               </div>
+
               <div>
-                <h2 className="text-lg font-bold">Historial de inspecciones</h2>
+                <h2 className="text-lg font-bold">
+                  Historial de inspecciones
+                </h2>
+
                 <p className="mt-1 text-sm text-muted-foreground">
                   Consulta, actualiza o descarga las fichas compartidas del equipo.
                 </p>
@@ -1355,6 +803,7 @@ export default function Page() {
                 size={17}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
               />
+
               <input
                 aria-label="Buscar ficha"
                 value={query}
@@ -1367,8 +816,13 @@ export default function Page() {
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-5 py-3">
             <p className="text-xs text-muted-foreground">
-              Resultados: <strong className="text-foreground">{filteredHistory.length}</strong>{loadingHistory ? ' · Sincronizando…' : ''}
+              Resultados:{' '}
+              <strong className="text-foreground">
+                {filteredHistory.length}
+              </strong>
+              {loadingHistory ? ' · Sincronizando…' : ''}
             </p>
+
             <p className="text-xs text-muted-foreground">
               Registros compartidos desde Supabase.
             </p>
@@ -1391,31 +845,47 @@ export default function Page() {
 
               <tbody className="divide-y divide-border">
                 {filteredHistory.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-muted/40">
+                  <tr
+                    key={item.id}
+                    className="transition-colors hover:bg-muted/40"
+                  >
                     <td className="whitespace-nowrap px-5 py-4">
                       <span className="font-mono font-bold text-primary">
                         {item.chassis}
                       </span>
                     </td>
-                    <td className="px-4 py-4 font-mono text-muted-foreground">{item.ind}</td>
-                    <td className="px-4 py-4 font-mono text-muted-foreground">{item.box || '—'}</td>
-                    <td className="px-4 py-4">{item.supervisor || '—'}</td>
+
+                    <td className="px-4 py-4 font-mono text-muted-foreground">
+                      {item.ind}
+                    </td>
+
+                    <td className="px-4 py-4 font-mono text-muted-foreground">
+                      {item.box || '—'}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {item.supervisor || '—'}
+                    </td>
+
                     <td className="whitespace-nowrap px-4 py-4 text-muted-foreground">
                       {item.date
                         ? new Date(`${item.date}T12:00:00`).toLocaleDateString('es-PE')
                         : '—'}
                     </td>
+
                     <td className="px-4 py-4">
                       <span className="inline-flex rounded-md border border-border bg-card px-2 py-1 text-xs font-medium">
                         {item.process}
                       </span>
                     </td>
+
                     <td className="px-4 py-4">
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         <Check size={14} />
                         {item.status || 'No revisado'}
                       </span>
                     </td>
+
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-1.5">
                         <button
@@ -1427,6 +897,7 @@ export default function Page() {
                         >
                           <Eye size={17} />
                         </button>
+
                         <button
                           type="button"
                           onClick={() => editReport(item)}
@@ -1436,6 +907,7 @@ export default function Page() {
                         >
                           <PencilLine size={17} />
                         </button>
+
                         <button
                           type="button"
                           onClick={() => exportReportById(item.id)}
@@ -1454,8 +926,15 @@ export default function Page() {
                 {filteredHistory.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-5 py-12 text-center">
-                      <Search size={24} className="mx-auto text-muted-foreground/60" />
-                      <p className="mt-3 text-sm font-semibold">No se encontraron fichas</p>
+                      <Search
+                        size={24}
+                        className="mx-auto text-muted-foreground/60"
+                      />
+
+                      <p className="mt-3 text-sm font-semibold">
+                        No se encontraron fichas
+                      </p>
+
                       <p className="mt-1 text-xs text-muted-foreground">
                         Prueba con otro chasis, IND, código de caja o supervisor.
                       </p>
@@ -1474,8 +953,10 @@ export default function Page() {
             <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
               <ClipboardList size={19} />
             </div>
+
             <div>
               <h2 className="font-bold">Catálogo de referencia</h2>
+
               <p className="mt-1 text-xs text-muted-foreground">
                 Filtra las categorías para consultar los códigos disponibles.
               </p>
@@ -1520,14 +1001,21 @@ export default function Page() {
                   <th className="px-4 py-2.5 font-semibold">Categoría</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-border">
                 {filteredItems.map((item) => (
                   <tr key={item.code} className="hover:bg-muted/30">
                     <td className="px-4 py-2.5 font-mono text-xs font-bold text-primary">
                       {item.code}
                     </td>
-                    <td className="px-4 py-2.5">{item.description}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{item.section}</td>
+
+                    <td className="px-4 py-2.5">
+                      {item.description}
+                    </td>
+
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {item.section}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1561,11 +1049,16 @@ export default function Page() {
                 <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary">
                   <FileSpreadsheet size={20} />
                 </div>
+
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                     Vista de ficha
                   </p>
-                  <h2 id="preview-title" className="mt-0.5 font-mono text-lg font-bold">
+
+                  <h2
+                    id="preview-title"
+                    className="mt-0.5 font-mono text-lg font-bold"
+                  >
                     Chasis {preview.chassis}
                   </h2>
                 </div>
@@ -1599,7 +1092,10 @@ export default function Page() {
                   <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                     {label}
                   </p>
-                  <p className="mt-1 break-words text-sm font-semibold">{value}</p>
+
+                  <p className="mt-1 break-words text-sm font-semibold">
+                    {value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -1607,6 +1103,7 @@ export default function Page() {
             <div className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="font-bold">Detalle de observaciones</h3>
+
                 <span className="rounded-md bg-muted px-2 py-1 text-xs font-bold">
                   {preview.observations.length}
                 </span>
@@ -1627,20 +1124,25 @@ export default function Page() {
                         <div className="grid size-8 shrink-0 place-items-center rounded-md bg-secondary text-primary">
                           <AlertTriangle size={16} />
                         </div>
+
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-primary">
                             {observation.code}
                           </p>
+
                           <h4 className="mt-0.5 text-sm font-semibold">
                             {observation.description}
                           </h4>
+
                           <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">
                             {observation.note}
                           </p>
+
                           <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                             <span className="rounded bg-muted px-2 py-1">
                               {observation.plant}
                             </span>
+
                             <span className="rounded bg-muted px-2 py-1">
                               Cantidad: {observation.quantity}
                             </span>
