@@ -82,20 +82,195 @@ function mapInspectionRow(row: InspectionRow): HistoryItem {
 }
 
 /* =========================================================
-   PLANTILLA EXCEL
+   CONFIGURACIÓN DE COORDENADAS EXCEL
+   IMPORTANTE: COORDENADAS PROVISIONALES
 ========================================================= */
 
 const EXCEL_CELLS = {
-  dateHeader: 'D3',
-  ind: 'C5',
-  supervisor: 'C6',
-  chassis: 'C7',
-  box: 'I5',
-  date: 'I6',
-  process: 'I7',
-  method: 'B11',
+  // Datos generales
+  chassis: 'C7:G7',
+  process: 'I7:K7',
+  ind: 'C5:G5',
+  box: 'I5:I5',
+  supervisor: 'C6:G6',
+  date: 'I6:K6',
+
+  // Método de inspección
+  methodNoDefinido: 'C11',
+  methodVisual: 'C12',
+  methodFin: 'I11',
+  methodPruebas: 'I12',
+
+  // Observaciones
   observations: 'B14',
+
+  // Rango de búsqueda de códigos
+  firstIndicatorRow: 1,
+  lastIndicatorRow: 200,
 } as const
+
+/*
+  Configuración de las dos tablas paralelas.
+
+  TABLA IZQUIERDA:
+  Código: A | P2: C | P3: D | Cantidad: E
+
+  TABLA DERECHA:
+  Código: G | P2: I | P3: J | Cantidad: K
+
+  ESTAS COORDENADAS SON SIMULADAS.
+  Puedes corregirlas cuando revises la plantilla real.
+*/
+
+const EXCEL_TABLES = [
+  {
+    name: 'izquierda',
+    codeColumn: 'A',
+    plant2Column: 'C',
+    plant3Column: 'D',
+    quantityColumn: 'E',
+  },
+  {
+    name: 'derecha',
+    codeColumn: 'G',
+    plant2Column: 'I',
+    plant3Column: 'J',
+    quantityColumn: 'K',
+  },
+] as const
+
+/* =========================================================
+   FUNCIONES AUXILIARES PARA EXPORTAR EXCEL
+========================================================= */
+
+// Convierte letras de columna en números
+function getColumnNumber(column: string): number {
+  let result = 0
+
+  for (const character of column.toUpperCase()) {
+    result = result * 26 + character.charCodeAt(0) - 64
+  }
+
+  return result
+}
+
+// Busca un código PE y devuelve su fila y tabla correspondiente
+function findIndicatorCell(
+  sheet: ExcelJS.Worksheet,
+  code: string,
+) {
+  const normalizedCode = code.trim().toUpperCase()
+
+  for (
+    let row = EXCEL_CELLS.firstIndicatorRow;
+    row <= EXCEL_CELLS.lastIndicatorRow;
+    row++
+  ) {
+    for (const table of EXCEL_TABLES) {
+      const column = getColumnNumber(table.codeColumn)
+      const value = sheet.getCell(row, column).value
+
+      if (
+        typeof value === 'string' &&
+        value.trim().toUpperCase() === normalizedCode
+      ) {
+        return {
+          row,
+          table,
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+// Agrupa cantidades por código y planta
+function groupObservationQuantities(
+  observations: Observation[],
+) {
+  const grouped = new Map<
+    string,
+    {
+      plant2: number
+      plant3: number
+    }
+  >()
+
+  for (const observation of observations) {
+    const code = observation.code.trim().toUpperCase()
+
+    if (!/^PE\d{3}$/.test(code)) continue
+
+    const quantity = Number(observation.quantity) || 0
+
+    if (!grouped.has(code)) {
+      grouped.set(code, {
+        plant2: 0,
+        plant3: 0,
+      })
+    }
+
+    const current = grouped.get(code)!
+
+    if (observation.plant === 'Planta 2') {
+      current.plant2 = current.plant2 + quantity
+    }
+
+    if (observation.plant === 'Planta 3') {
+      current.plant3 = current.plant3 + quantity
+    }
+  }
+
+  return grouped
+}
+
+// Escribe las cantidades en la tabla donde se encuentra cada código
+function writeIndicatorQuantities(
+  sheet: ExcelJS.Worksheet,
+  observations: Observation[],
+) {
+  const grouped = groupObservationQuantities(observations)
+
+  for (const [code, quantities] of grouped) {
+    const location = findIndicatorCell(sheet, code)
+
+    if (!location) {
+      console.warn(`No se encontró el código ${code} en la plantilla`)
+      continue
+    }
+
+    const { row, table } = location
+
+    const plant2Column = getColumnNumber(table.plant2Column)
+    const plant3Column = getColumnNumber(table.plant3Column)
+    const quantityColumn = getColumnNumber(table.quantityColumn)
+
+    sheet.getCell(row, plant2Column).value =
+      quantities.plant2 || ''
+
+    sheet.getCell(row, plant3Column).value =
+      quantities.plant3 || ''
+
+    sheet.getCell(row, quantityColumn).value =
+      quantities.plant2 + quantities.plant3
+  }
+}
+
+// Construye el texto de observaciones
+function buildObservationsText(
+  observations: Observation[],
+): string {
+  return observations
+    .map((item) => {
+      return [
+        `${item.code} - ${item.description}`,
+        `  ${item.note}`,
+        `  Planta: ${item.plant} | Cantidad: ${item.quantity}`,
+      ].join('\n')
+    })
+    .join('\n\n')
+}
 
 /* =========================================================
    HOOK PRINCIPAL
@@ -177,7 +352,9 @@ export function useChecklist() {
 
       if (error) throw error
 
-      setHistory(((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
+      setHistory(
+        ((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow),
+      )
     } catch (error) {
       console.error('Error al cargar el historial de Supabase:', error)
       showToast('No se pudo cargar el historial de la nube')
@@ -226,7 +403,9 @@ export function useChecklist() {
           console.error('Error al cargar el historial:', historyError)
           setToast('Sesión iniciada, pero no se pudo cargar el historial')
         } else {
-          setHistory(((rows ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
+          setHistory(
+            ((rows ?? []) as unknown as InspectionRow[]).map(mapInspectionRow),
+          )
         }
       }
     }
@@ -262,7 +441,9 @@ export function useChecklist() {
                   console.error('Error al cargar historial tras autenticar:', error)
                   setToast('No se pudo cargar el historial')
                 } else {
-                  setHistory(((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow))
+                  setHistory(
+                    ((data ?? []) as unknown as InspectionRow[]).map(mapInspectionRow),
+                  )
                 }
               })
           }, 0)
@@ -576,6 +757,7 @@ export function useChecklist() {
       }
 
       const workbook = new ExcelJS.Workbook()
+
       await workbook.xlsx.load(await response.arrayBuffer())
 
       const sheet = workbook.worksheets[0]
@@ -584,29 +766,64 @@ export function useChecklist() {
         throw new Error('La plantilla no contiene hojas de cálculo')
       }
 
-      sheet.getCell(EXCEL_CELLS.dateHeader).value = report.date
-        ? new Date(`${report.date}T12:00:00`)
-        : ''
-
-      sheet.getCell(EXCEL_CELLS.ind).value = report.ind
-      sheet.getCell(EXCEL_CELLS.supervisor).value = report.supervisor
+      // 1. Datos generales
       sheet.getCell(EXCEL_CELLS.chassis).value = report.chassis
-      sheet.getCell(EXCEL_CELLS.box).value = report.box
-
-      sheet.getCell(EXCEL_CELLS.date).value = report.date
-        ? new Date(`${report.date}T12:00:00`)
-        : ''
-
       sheet.getCell(EXCEL_CELLS.process).value = report.process
-      sheet.getCell(EXCEL_CELLS.method).value = report.method
+      sheet.getCell(EXCEL_CELLS.ind).value = report.ind
+      sheet.getCell(EXCEL_CELLS.box).value = report.box
+      sheet.getCell(EXCEL_CELLS.supervisor).value = report.supervisor
 
-      sheet.getCell(EXCEL_CELLS.observations).value = observations
-        .map(
-          (item) =>
-            `${item.code} — ${item.description}: ${item.note} (Cantidad: ${item.quantity}) [${item.plant}]`,
-        )
-        .join('\n')
+      // Fecha de inspección
+      const dateCell = sheet.getCell(EXCEL_CELLS.date)
 
+      if (report.date) {
+        const [year, month, day] = report.date
+          .slice(0, 10)
+          .split('-')
+          .map(Number)
+
+        dateCell.value = new Date(year, month - 1, day, 12, 0, 0)
+        dateCell.numFmt = 'dd/mm/yyyy'
+      } else {
+        dateCell.value = ''
+      }
+
+      // 2. Método de inspección
+      const method = report.method.trim().toUpperCase()
+
+      if (method === 'NO DEFINIDO') {
+        sheet.getCell(EXCEL_CELLS.methodNoDefinido).value = 'X'
+      } else if (method === 'VISUAL') {
+        sheet.getCell(EXCEL_CELLS.methodVisual).value = 'X'
+      } else if (method === 'FIN') {
+        sheet.getCell(EXCEL_CELLS.methodFin).value = 'X'
+      } else if (method === 'PRUEBAS') {
+        sheet.getCell(EXCEL_CELLS.methodPruebas).value = 'X'
+      }
+
+      // 3. Cantidades por código y planta
+      writeIndicatorQuantities(sheet, observations)
+
+      // 4. Observaciones
+      sheet.getCell(EXCEL_CELLS.observations).value =
+        buildObservationsText(observations)
+
+      sheet.getCell(EXCEL_CELLS.observations).alignment = {
+        wrapText: true,
+        vertical: 'top',
+      }
+// Forzar texto negro en las celdas utilizadas
+sheet.eachRow((row) => {
+  row.eachCell((cell) => {
+    if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
+      cell.font = {
+        ...cell.font,
+        color: { argb: 'FF000000' },
+      }
+    }
+  })
+})
+      // 5. Generar archivo
       const buffer = await workbook.xlsx.writeBuffer()
 
       const blob = new Blob([buffer], {
@@ -617,7 +834,10 @@ export function useChecklist() {
       const link = document.createElement('a')
 
       link.href = url
-      link.download = `checklist-open-${report.chassis || 'reporte'}-${report.process.toLowerCase().replace(/\s+/g, '-')}.xlsx`
+      link.download =
+        `checklist-open-${report.chassis || 'reporte'}-${report.process
+          .toLowerCase()
+          .replace(/\s+/g, '-')}.xlsx`
 
       document.body.appendChild(link)
       link.click()
@@ -634,31 +854,38 @@ export function useChecklist() {
     }
   }
 
+  /* =======================================================
+     EXPORTAR FICHA POR ID
+  ======================================================= */
+
   const exportReportById = async (id: string) => {
-    if (exporting) return
+    try {
+      const { data, error } = await supabase
+        .from('inspections')
+        .select(`
+          id, ind, supervisor, chassis, box_code, process,
+          inspection_date, method, status,
+          inspection_observations (
+            code_snapshot, description_snapshot, note, quantity, plant
+          )
+        `)
+        .eq('id', id)
+        .single()
 
-    const { data, error } = await supabase
-      .from('inspections')
-      .select(`
-        id, ind, supervisor, chassis, box_code, process,
-        inspection_date, method, status,
-        inspection_observations (
-          code_snapshot, description_snapshot, note, quantity, plant
-        )
-      `)
-      .eq('id', id)
-      .single()
+      if (error) throw error
 
-    if (error || !data) {
-      console.error('No se pudo recuperar la ficha para exportar:', error)
+      const report = mapInspectionRow(data as unknown as InspectionRow)
+
+      await exportWorkbook(report, report.observations)
+    } catch (error) {
+      console.error('Error al recuperar la ficha desde la nube:', error)
       showToast('No se pudo recuperar la ficha desde la nube')
-      return
     }
-
-    const report = mapInspectionRow(data as unknown as InspectionRow)
-
-    await exportWorkbook(report, report.observations)
   }
+
+  /* =======================================================
+     EXPORTAR FICHA POR CHASIS Y PROCESO
+  ======================================================= */
 
   const exportReportByKey = async () => {
     const chassis = metadata.chassis.trim()
@@ -668,19 +895,26 @@ export function useChecklist() {
       return
     }
 
-    const { data, error } = await supabase
-      .from('inspections')
-      .select('id')
-      .eq('chassis', chassis)
-      .eq('process', metadata.process)
-      .maybeSingle()
+    try {
+      const { data, error } = await supabase
+        .from('inspections')
+        .select('id')
+        .eq('chassis', chassis)
+        .eq('process', metadata.process)
+        .maybeSingle()
 
-    if (error || !data) {
-      showToast('Primero guarda la ficha en la nube')
-      return
+      if (error) throw error
+
+      if (!data) {
+        showToast('Primero guarda la ficha en la nube')
+        return
+      }
+
+      await exportReportById(data.id)
+    } catch (error) {
+      console.error('Error al buscar la ficha para exportar:', error)
+      showToast('No se pudo recuperar la ficha desde la nube')
     }
-
-    await exportReportById(data.id)
   }
 
   /* =======================================================
