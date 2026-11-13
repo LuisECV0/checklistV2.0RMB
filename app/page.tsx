@@ -366,7 +366,7 @@ export default function Page() {
               IND <span className="text-destructive">*</span>
               <input
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={10}
                 value={metadata.ind}
                 onChange={(e) =>
                   setMeta('ind', e.target.value.replace(/\D/g, '').slice(0, 4))
@@ -390,7 +390,7 @@ export default function Page() {
               Número de chasis <span className="text-destructive">*</span>
               <input
                 inputMode="numeric"
-                maxLength={6}
+                maxLength={10}
                 value={metadata.chassis}
                 onChange={(e) =>
                   setMeta('chassis', e.target.value.replace(/\D/g, '').slice(0, 6))
@@ -415,7 +415,7 @@ export default function Page() {
             <label className={labelClass}>
               Código de caja
               <input
-                maxLength={7}
+                maxLength={12}
                 value={metadata.box}
                 onChange={(e) =>
                   setMeta(
