@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { ThemeToggle } from '@/app/theme-toggle'
 import { MANUAL_SELECTION, useChecklist } from '@/hooks/useChecklist'
 
 /* =========================================================
@@ -133,6 +134,7 @@ export default function Page() {
   if (authChecking) {
     return (
       <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
+        <ThemeToggle className="fixed right-4 top-4 z-10" />
         <div className={`${panelClass} w-full max-w-md p-6 text-center`}>
           <ClipboardCheck size={30} className="mx-auto text-primary" />
           <p className="mt-3 text-sm text-muted-foreground">
@@ -146,6 +148,7 @@ export default function Page() {
   if (!userEmail) {
     return (
       <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
+        <ThemeToggle className="fixed right-4 top-4 z-10" />
         <section className={`${panelClass} w-full max-w-md p-6 sm:p-8`}>
           <div className="mx-auto grid size-12 place-items-center rounded-xl bg-primary text-primary-foreground">
             <ClipboardCheck size={25} />
@@ -245,6 +248,8 @@ export default function Page() {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
+
             <button
               type="button"
               onClick={() =>
