@@ -366,12 +366,12 @@ export default function Page() {
               IND <span className="text-destructive">*</span>
               <input
                 inputMode="numeric"
-                maxLength={10}
+                maxLength={12}
                 value={metadata.ind}
                 onChange={(e) =>
-                  setMeta('ind', e.target.value.replace(/\D/g, '').slice(0, 4))
+                  setMeta('ind', e.target.value.replace(/\D/g, '').slice(0, 12))
                 }
-                placeholder="Ej. 0125"
+                placeholder="Ej. 5186"
                 className={inputClass}
               />
             </label>
@@ -389,13 +389,15 @@ export default function Page() {
             <label className={labelClass}>
               Número de chasis <span className="text-destructive">*</span>
               <input
-                inputMode="numeric"
-                maxLength={10}
+                maxLength={17}
                 value={metadata.chassis}
                 onChange={(e) =>
-                  setMeta('chassis', e.target.value.replace(/\D/g, '').slice(0, 6))
+                  setMeta(
+                    'chassis',
+                    e.target.value.replace(/[^0-9a-zA-Z]/g, '').toUpperCase().slice(0, 17),
+                  )
                 }
-                placeholder="Ej. 001250"
+                placeholder="Ej. 641913"
                 aria-invalid={duplicateChassis}
                 className={`${inputClass} ${
                   duplicateChassis
@@ -420,10 +422,10 @@ export default function Page() {
                 onChange={(e) =>
                   setMeta(
                     'box',
-                    e.target.value.toUpperCase().replace(/[^0-9A-Z-]/g, '').slice(0, 7),
+                    e.target.value.toUpperCase().replace(/[^0-9A-Z-]/g, '').slice(0, 12),
                   )
                 }
-                placeholder="Ej. 0125-AB"
+                placeholder="Ej. 5428-RMB"
                 className={inputClass}
               />
             </label>
