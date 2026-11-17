@@ -42,6 +42,13 @@ const secondaryButtonClass =
 const iconButtonClass =
   'inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
 
+  const QUALITY_SUPERVISORS = [
+  'Antony B.',
+  'Fardy C.',
+  'Joel V.',
+  'Luis C.V.',
+  'Elmer',
+]
 /* =========================================================
    COMPONENTE PRINCIPAL
 ========================================================= */
@@ -378,12 +385,18 @@ export default function Page() {
 
             <label className={labelClass}>
               Supervisor de calidad <span className="text-destructive">*</span>
-              <input
+              <select
                 value={metadata.supervisor}
                 onChange={(e) => setMeta('supervisor', e.target.value)}
-                placeholder="Nombre del supervisor"
                 className={inputClass}
-              />
+              >
+                <option value="">Supervisor</option>
+                {QUALITY_SUPERVISORS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className={labelClass}>
