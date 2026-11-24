@@ -618,7 +618,12 @@ export function useChecklist() {
     setQuantity('1')
     setPreview(null)
 
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({
+      top: 0,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth',
+    })
 
     showToast(`Ficha ${item.chassis} cargada para edición`)
   }

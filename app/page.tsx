@@ -4,6 +4,7 @@
 import {
   AlertTriangle,
   BadgeCheck,
+  BarChart3,
   CalendarDays,
   Check,
   ClipboardCheck,
@@ -18,6 +19,7 @@ import {
   X,
 } from 'lucide-react'
 
+import Link from 'next/link'
 import { ThemeToggle } from '@/app/theme-toggle'
 import { MANUAL_SELECTION, useChecklist } from '@/hooks/useChecklist'
 
@@ -26,7 +28,7 @@ import { MANUAL_SELECTION, useChecklist } from '@/hooks/useChecklist'
 ========================================================= */
 
 const inputClass =
-  'mt-1.5 w-full min-w-0 rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60'
+  'mt-1.5 w-full min-w-0 rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground shadow-sm outline-none transition duration-200 ease-out placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60'
 
 const labelClass =
   'block min-w-0 text-xs font-semibold tracking-wide text-muted-foreground'
@@ -35,10 +37,10 @@ const panelClass =
   'min-w-0 rounded-xl border border-border bg-card shadow-sm'
 
 const primaryButtonClass =
-  'inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition duration-200 ease-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50'
 
 const secondaryButtonClass =
-  'inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition duration-200 ease-out hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
 
 const iconButtonClass =
   'inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition hover:border-primary/40 hover:bg-secondary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
@@ -135,7 +137,7 @@ export default function Page() {
     return (
       <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
         <ThemeToggle className="fixed right-4 top-4 z-10" />
-        <div className={`${panelClass} w-full max-w-md p-6 text-center`}>
+        <div className={`${panelClass} rmb-enter w-full max-w-md p-6 text-center`}>
           <ClipboardCheck size={30} className="mx-auto text-primary" />
           <p className="mt-3 text-sm text-muted-foreground">
             Verificando sesión de Supabase…
@@ -149,7 +151,7 @@ export default function Page() {
     return (
       <main className="grid min-h-screen place-items-center bg-background p-4 text-foreground">
         <ThemeToggle className="fixed right-4 top-4 z-10" />
-        <section className={`${panelClass} w-full max-w-md p-6 sm:p-8`}>
+        <section className={`${panelClass} rmb-enter w-full max-w-md p-6 sm:p-8`}>
           <div className="mx-auto grid size-12 place-items-center rounded-xl bg-primary text-primary-foreground">
             <ClipboardCheck size={25} />
           </div>
@@ -210,8 +212,9 @@ export default function Page() {
 
         {toast && (
           <div
+            key={toast}
             role="status"
-            className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg"
+            className="rmb-toast-enter fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-3 text-sm text-background shadow-lg"
           >
             {toast}
           </div>
@@ -224,7 +227,7 @@ export default function Page() {
     <main className="min-h-screen overflow-x-hidden bg-background text-foreground">
       {/* Encabezado corporativo */}
 
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+      <header className="rmb-enter sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <div className="relative grid size-11 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
@@ -249,6 +252,16 @@ export default function Page() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
+
+            <Link
+              href="/dashboard"
+              className={secondaryButtonClass}
+              aria-label="Abrir dashboard analítico"
+              title="Dashboard analítico"
+            >
+              <BarChart3 size={17} />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
 
             <button
               type="button"
@@ -285,7 +298,7 @@ export default function Page() {
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {/* Cabecera de la página */}
 
-        <section className="relative mb-6 overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
+        <section className="rmb-enter rmb-enter-delay-1 relative mb-6 overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
           <div className="absolute inset-y-0 right-0 hidden w-1/3 opacity-[0.08] sm:block">
             <ClipboardCheck className="absolute -right-8 -top-12 size-72" strokeWidth={0.7} />
           </div>
@@ -335,7 +348,7 @@ export default function Page() {
 
         {/* Datos del reporte */}
 
-        <section className={`${panelClass} mb-6`}>
+        <section className={`${panelClass} rmb-enter rmb-enter-delay-2 mb-6`}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="grid size-9 place-items-center rounded-lg bg-secondary text-primary">
@@ -356,7 +369,7 @@ export default function Page() {
           </div>
 
           {editingChassis !== null && (
-            <div className="mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-secondary p-3">
+            <div className="rmb-enter mx-5 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-secondary p-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-primary">
                 <PencilLine size={17} />
                 <span>Modo edición · Chasis {editingChassis}</span>
@@ -496,7 +509,7 @@ export default function Page() {
 
         {/* Captura de observaciones */}
 
-        <section className="mb-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <section className="rmb-enter rmb-enter-delay-3 mb-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
           {/* Nueva observación */}
 
           <div className={`${panelClass} p-5 sm:p-6`}>
@@ -553,7 +566,7 @@ export default function Page() {
             </div>
 
             {analysisComplete && (
-              <div className="mt-6 border-t border-border pt-5">
+              <div className="rmb-enter mt-6 border-t border-border pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-bold">
                     Sugerencias de clasificación
@@ -584,11 +597,12 @@ export default function Page() {
                         key={suggestion}
                         type="button"
                         onClick={() => setSelected(suggestion)}
-                        className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${
+                        className={`rmb-enter flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-all duration-200 ease-out ${
                           isSelected
-                            ? 'border-primary bg-secondary ring-1 ring-primary/20'
+                            ? 'scale-[1.01] border-primary bg-secondary ring-1 ring-primary/20'
                             : 'border-border bg-card hover:border-primary/40 hover:bg-muted/50'
                         }`}
+                        style={{ animationDelay: `${index * 45}ms` }}
                       >
                         <span
                           className={`grid size-7 shrink-0 place-items-center rounded-md text-xs font-bold ${
@@ -613,7 +627,7 @@ export default function Page() {
                         </span>
 
                         {isSelected && (
-                          <Check size={18} className="shrink-0 text-primary" />
+                          <Check size={18} className="rmb-theme-icon shrink-0 text-primary" />
                         )}
                       </button>
                     )
@@ -622,7 +636,7 @@ export default function Page() {
                   <button
                     type="button"
                     onClick={() => setSelected(MANUAL_SELECTION)}
-                    className={`flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-left text-sm font-semibold transition ${
+                    className={`flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-left text-sm font-semibold transition-all duration-200 ease-out ${
                       selected === MANUAL_SELECTION
                         ? 'border-primary bg-secondary text-primary'
                         : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
@@ -724,7 +738,8 @@ export default function Page() {
                 {savedObservations.map((item, index) => (
                   <article
                     key={`${item.code}-${index}`}
-                    className="rounded-lg border border-border p-3"
+                    className="rmb-enter rounded-lg border border-border p-3"
+                    style={{ animationDelay: `${Math.min(index, 5) * 45}ms` }}
                   >
                     <div className="flex items-start gap-3">
                       <div className="grid size-8 shrink-0 place-items-center rounded-md bg-secondary text-primary">
@@ -800,7 +815,7 @@ export default function Page() {
 
         {/* Historial */}
 
-        <section className={`${panelClass} mb-6 overflow-hidden`}>
+        <section className={`${panelClass} rmb-enter rmb-enter-delay-4 mb-6 overflow-hidden`}>
           <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
@@ -867,7 +882,7 @@ export default function Page() {
                 {filteredHistory.map((item) => (
                   <tr
                     key={item.id}
-                    className="transition-colors hover:bg-muted/40"
+                    className="transition-colors duration-200 ease-out hover:bg-muted/40"
                   >
                     <td className="whitespace-nowrap px-5 py-4">
                       <span className="font-mono font-bold text-primary">
@@ -1056,13 +1071,13 @@ export default function Page() {
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setPreview(null)
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+          className="rmb-dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
         >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="preview-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
+            className="rmb-dialog-enter max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-card px-5 py-4">
               <div className="flex items-center gap-3">
@@ -1211,9 +1226,10 @@ export default function Page() {
 
       {toast && (
         <div
+          key={toast}
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-[#103958] px-4 py-3 text-sm font-semibold text-white shadow-xl"
+          className="rmb-toast-enter fixed bottom-5 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-lg border border-white/10 bg-[#103958] px-4 py-3 text-sm font-semibold text-white shadow-xl"
         >
           <Check size={17} className="shrink-0 text-[#F2B827]" />
           <span>{toast}</span>
